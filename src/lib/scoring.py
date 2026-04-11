@@ -1,201 +1,113 @@
 """
-Factor scoring engine.
+Factor scoring engine — S&P 500 edition.
 
 Factor weights
 --------------
-Trend score    = 40% ret_13w  + 30% ret_26w  + 30% ret_52w
-Quality score  = 40% revenue_growth_ttm + 30% oper_margin_ttm + 30% fcf_margin_ttm
-Value score    = inverse percentile rank of ev_ebit  (lower EV/EBIT → higher score)
-Risk score     = inverse percentile rank of volatility_26w  (lower vol → higher score)
+Trend score   = 40% rank(ret_13w) + 30% rank(ret_26w) + 30% rank(ret_52w)
+Quality score = 30% rank(roe) + 25% rank(oper_margin_ttm) + 25% rank(fcf_margin_ttm) + 20% rank(roic)
+Value score   = 35% inv_rank(pe_ratio) + 30% inv_rank(ev_ebitda) + 20% inv_rank(pb_ratio) + 15% rank(dividend_yield)
+Risk score    = 50% inv_rank(volatility_26w) + 30% inv_rank(debt_equity) + 20% inv_rank(beta)
 
-Composite      = 35% trend + 30% quality + 20% value + 15% risk
+Composite     = 30% Trend + 30% Quality + 25% Value + 15% Risk
 
-All component scores are first converted to percentile ranks [0, 1] before
-weighting, so every factor contributes on the same normalised scale.
+All inputs are percentile-ranked [0,1] before weighting.
 """
 
 from __future__ import annotations
 
 import logging
-
 import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Composite weights
-# ---------------------------------------------------------------------------
-
-TREND_W = 0.35
+# ── Composite weights ────────────────────────────────────────────────────────
+TREND_W   = 0.30
 QUALITY_W = 0.30
-VALUE_W = 0.20
-RISK_W = 0.15
+VALUE_W   = 0.25
+RISK_W    = 0.15
 
-# Sub-factor weights inside Trend
-_TREND_W_13 = 0.40
-_TREND_W_26 = 0.30
-_TREND_W_52 = 0.30
-
-# Sub-factor weights inside Quality
-_QUAL_W_REV = 0.40
-_QUAL_W_OPM = 0.30
-_QUAL_W_FCF = 0.30
-
-
-# ---------------------------------------------------------------------------
-# Core utility
-# ---------------------------------------------------------------------------
 
 def percentile_rank(series: pd.Series) -> pd.Series:
-    """
-    Convert a numeric Series to percentile ranks in [0, 1].
-
-    NaN values are excluded from the ranking denominator and remain NaN in
-    the output (they are handled downstream in ``build_scores``).
-
-    Parameters
-    ----------
-    series : pd.Series
-        Raw factor values (any numeric dtype).
-
-    Returns
-    -------
-    pd.Series
-        Percentile ranks, same index as *series*, values in [0.0, 1.0].
-        Equal values receive the average of their rank positions (method="average").
-    """
+    """Convert to percentile ranks [0, 1]. NaN stays NaN."""
     return series.rank(method="average", ascending=True, pct=True, na_option="keep")
 
 
-# ---------------------------------------------------------------------------
-# Score builders
-# ---------------------------------------------------------------------------
+def _safe_col(df: pd.DataFrame, col: str) -> pd.Series:
+    """Return column as float, or a series of NaN if missing."""
+    if col in df.columns:
+        return pd.to_numeric(df[col], errors="coerce")
+    return pd.Series(np.nan, index=df.index)
+
+
+# ── Sub-factor builders ──────────────────────────────────────────────────────
 
 def _trend_score(df: pd.DataFrame) -> pd.Series:
-    """
-    Weighted average of momentum percentile ranks.
-
-    Requires columns: ret_13w, ret_26w, ret_52w
-    """
-    r13 = percentile_rank(df["ret_13w"])
-    r26 = percentile_rank(df["ret_26w"])
-    r52 = percentile_rank(df["ret_52w"])
-
-    score = _TREND_W_13 * r13 + _TREND_W_26 * r26 + _TREND_W_52 * r52
-    return score.rename("trend_score")
+    r13 = percentile_rank(_safe_col(df, "ret_13w"))
+    r26 = percentile_rank(_safe_col(df, "ret_26w"))
+    r52 = percentile_rank(_safe_col(df, "ret_52w"))
+    return (0.40 * r13 + 0.30 * r26 + 0.30 * r52).rename("trend_score")
 
 
 def _quality_score(df: pd.DataFrame) -> pd.Series:
-    """
-    Weighted average of profitability percentile ranks.
-
-    Requires columns: revenue_growth_ttm, oper_margin_ttm, fcf_margin_ttm
-    """
-    rg = percentile_rank(df["revenue_growth_ttm"])
-    om = percentile_rank(df["oper_margin_ttm"])
-    fm = percentile_rank(df["fcf_margin_ttm"])
-
-    score = _QUAL_W_REV * rg + _QUAL_W_OPM * om + _QUAL_W_FCF * fm
-    return score.rename("quality_score")
+    roe    = percentile_rank(_safe_col(df, "roe"))
+    opm    = percentile_rank(_safe_col(df, "oper_margin_ttm"))
+    fcfm   = percentile_rank(_safe_col(df, "fcf_margin_ttm"))
+    roic   = percentile_rank(_safe_col(df, "roic"))
+    return (0.30 * roe + 0.25 * opm + 0.25 * fcfm + 0.20 * roic).rename("quality_score")
 
 
 def _value_score(df: pd.DataFrame) -> pd.Series:
-    """
-    Inverted percentile rank of EV/EBIT.
-
-    Lower EV/EBIT (cheaper) → higher value score.
-    Requires column: ev_ebit
-    """
-    # 1 − rank so that cheap (low EV/EBIT) gets high score
-    score = 1.0 - percentile_rank(df["ev_ebit"])
-    return score.rename("value_score")
+    # Lower PE/EV_EBITDA/PB = cheaper = higher score → invert
+    pe     = 1.0 - percentile_rank(_safe_col(df, "pe_ratio"))
+    ev_eb  = 1.0 - percentile_rank(_safe_col(df, "ev_ebitda"))
+    pb     = 1.0 - percentile_rank(_safe_col(df, "pb_ratio"))
+    # Higher dividend = better → normal rank
+    div_y  = percentile_rank(_safe_col(df, "dividend_yield"))
+    return (0.35 * pe + 0.30 * ev_eb + 0.20 * pb + 0.15 * div_y).rename("value_score")
 
 
 def _risk_score(df: pd.DataFrame) -> pd.Series:
-    """
-    Inverted percentile rank of 26-week realised volatility.
-
-    Lower volatility → higher risk score (less risky = preferred).
-    Requires column: volatility_26w
-    """
-    score = 1.0 - percentile_rank(df["volatility_26w"])
-    return score.rename("risk_score")
+    # Lower vol / debt / beta = less risky = higher score → invert
+    vol    = 1.0 - percentile_rank(_safe_col(df, "volatility_26w"))
+    debt   = 1.0 - percentile_rank(_safe_col(df, "debt_equity"))
+    beta   = 1.0 - percentile_rank(_safe_col(df, "beta"))
+    return (0.50 * vol + 0.30 * debt + 0.20 * beta).rename("risk_score")
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
+# ── Public API ────────────────────────────────────────────────────────────────
 
 def build_scores(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Compute all factor scores and the composite score for the full universe.
+    Compute all factor scores and composite for the full universe.
 
     Parameters
     ----------
-    df : pd.DataFrame
-        Input DataFrame with (at minimum) the following columns:
-
-        Trend inputs:
-            ret_13w            — 13-week total return (decimal, e.g. 0.12 = +12 %)
-            ret_26w            — 26-week total return
-            ret_52w            — 52-week total return
-
-        Quality inputs:
-            revenue_growth_ttm — trailing 12-month revenue growth (decimal)
-            oper_margin_ttm    — trailing 12-month operating margin (decimal)
-            fcf_margin_ttm     — trailing 12-month free-cash-flow margin (decimal)
-
-        Value inputs:
-            ev_ebit            — EV / EBIT ratio (positive = profitable)
-
-        Risk inputs:
-            volatility_26w     — annualised 26-week return volatility (decimal)
-
-        Optional pass-through columns (kept as-is):
-            ticker, name, sector, cik, …
-
-    Missing numeric values are filled with 0 before scoring so that a gap in
-    one factor does not silently drop the entire row.
+    df : pd.DataFrame with columns:
+        ticker, name, sector, cik,
+        ret_13w, ret_26w, ret_52w, volatility_26w,
+        pe_ratio, pb_ratio, ev_ebitda, ev_ebit,
+        roe, roic, debt_equity,
+        eps_ttm, dividend_yield,
+        revenue_growth_ttm, oper_margin_ttm, gross_margin_ttm,
+        fcf_margin_ttm, market_cap, beta
 
     Returns
     -------
-    pd.DataFrame
-        Original columns plus:
-            trend_score, quality_score, value_score, risk_score,
-            composite_score
-        Sorted by composite_score descending (rank 1 = best stock).
+    pd.DataFrame — original + trend_score, quality_score, value_score,
+    risk_score, composite_score. Sorted by composite descending.
     """
-    # Work on a copy to avoid mutating caller's DataFrame
     out = df.copy()
 
-    # Factor input columns and their fill-forward value for missing data
-    factor_cols = [
-        "ret_13w", "ret_26w", "ret_52w",
-        "revenue_growth_ttm", "oper_margin_ttm", "fcf_margin_ttm",
-        "ev_ebit", "volatility_26w",
-    ]
-
-    missing_cols = [c for c in factor_cols if c not in out.columns]
-    if missing_cols:
-        logger.warning("Missing factor columns — filling with 0: %s", missing_cols)
-        for col in missing_cols:
-            out[col] = 0.0
-
-    # Replace NaN with 0 for all factor inputs
-    out[factor_cols] = out[factor_cols].fillna(0.0)
-
-    # Compute individual factor scores
     out["trend_score"]   = _trend_score(out)
     out["quality_score"] = _quality_score(out)
     out["value_score"]   = _value_score(out)
     out["risk_score"]    = _risk_score(out)
 
-    # Fill any NaN scores produced by zero-variance columns (all ranks equal)
+    # Fill NaN scores (e.g. all-NaN columns) with 0.5 (neutral)
     score_cols = ["trend_score", "quality_score", "value_score", "risk_score"]
     out[score_cols] = out[score_cols].fillna(0.5)
 
-    # Composite score (weighted average of factor scores)
     out["composite_score"] = (
         TREND_W   * out["trend_score"]
         + QUALITY_W * out["quality_score"]
@@ -203,15 +115,13 @@ def build_scores(df: pd.DataFrame) -> pd.DataFrame:
         + RISK_W    * out["risk_score"]
     )
 
-    # Round scores for readability
-    score_cols_all = score_cols + ["composite_score"]
-    out[score_cols_all] = out[score_cols_all].round(4)
+    all_scores = score_cols + ["composite_score"]
+    out[all_scores] = out[all_scores].round(4)
 
-    # Sort best → worst
     out = out.sort_values("composite_score", ascending=False).reset_index(drop=True)
 
     logger.info(
-        "Scoring complete: %d stocks | top=%s (%.4f) | bottom=%s (%.4f)",
+        "Scoring: %d stocks | top=%s (%.4f) | bottom=%s (%.4f)",
         len(out),
         out.iloc[0]["ticker"] if len(out) else "—",
         out.iloc[0]["composite_score"] if len(out) else 0,

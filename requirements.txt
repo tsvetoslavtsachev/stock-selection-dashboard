@@ -5,11 +5,14 @@
 pandas>=2.0.0          # DataFrames, CSV I/O, time-series manipulation
 numpy>=1.24.0          # Numeric operations, percentile ranking
 
+# ── Market data ──────────────────────────────────────────────────────────────
+yfinance>=0.2.30       # Yahoo Finance: prices + fundamentals (no API key needed)
+
 # ── Storage ──────────────────────────────────────────────────────────────────
 pyarrow>=14.0.0        # Parquet read/write (optional; used if Parquet I/O is added)
 
 # ── HTTP ─────────────────────────────────────────────────────────────────────
-requests>=2.31.0       # Alpha Vantage + SEC EDGAR API calls
+requests>=2.31.0       # SEC EDGAR API calls (optional fallback)
 
 # ── Config ───────────────────────────────────────────────────────────────────
 pyyaml>=6.0            # config/settings.yml parsing

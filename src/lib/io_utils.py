@@ -82,6 +82,10 @@ def read_universe(enabled_only: bool = True) -> pd.DataFrame:
     df = pd.read_csv(UNIVERSE_PATH, dtype=str)
     df.columns = [c.strip().lower() for c in df.columns]
 
+    # Normalise: universe.csv may use 'symbol' as header; pipeline expects 'ticker'
+    if "symbol" in df.columns and "ticker" not in df.columns:
+        df = df.rename(columns={"symbol": "ticker"})
+
     required = {"ticker", "cik", "sector", "name", "enabled"}
     missing = required - set(df.columns)
     if missing:

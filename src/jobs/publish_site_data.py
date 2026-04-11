@@ -1,28 +1,11 @@
 """
 Job: publish_site_data
 ======================
-Reads data/processed/ranks.csv and publishes three static JSON files
-consumed by the frontend dashboard:
+Reads data/processed/ranks.csv and publishes JSON files for the frontend:
 
-    app/data/ranked_stocks.json   — full universe with all scores
-    app/data/market_summary.json  — high-level metadata snapshot
-    app/data/leaders.json         — top 10 by composite_score
-
-JSON schema
------------
-ranked_stocks.json:
-    List of objects sorted by composite_score descending.
-    Each object: {ticker, name, sector, rank, composite_score,
-                  trend_score, quality_score, value_score, risk_score,
-                  ret_13w, ret_26w, ret_52w, volatility_26w,
-                  revenue_growth_ttm, oper_margin_ttm, fcf_margin_ttm}
-
-market_summary.json:
-    {universe_size, top_symbol, top_score, bottom_symbol, bottom_score,
-     median_composite, as_of}
-
-leaders.json:
-    Same schema as ranked_stocks entries, top 10 only.
+    app/data/ranked_stocks.json   — full S&P 500 with all scores + fundamentals
+    app/data/market_summary.json  — high-level stats
+    app/data/leaders.json         — top 10
 
 Usage
 -----
@@ -49,50 +32,56 @@ logger = logging.getLogger("publish_site_data")
 _RANKS_CSV = DATA_PROCESSED / "ranks.csv"
 _N_LEADERS = 10
 
-# Columns to include in the published JSON (keeps payload lean)
+# All columns to include in JSON output
+_META_COLS = ["ticker", "name", "sector"]
+
 _SCORE_COLS = [
     "composite_score", "trend_score", "quality_score",
     "value_score", "risk_score",
 ]
-_FACTOR_COLS = [
+
+_PRICE_COLS = [
     "ret_13w", "ret_26w", "ret_52w", "volatility_26w",
-    "revenue_growth_ttm", "oper_margin_ttm", "fcf_margin_ttm",
 ]
-_META_COLS = ["ticker", "name", "sector"]
+
+_FUNDAMENTAL_COLS = [
+    "pe_ratio", "pb_ratio", "ev_ebitda", "ev_ebit",
+    "roe", "roic", "debt_equity",
+    "eps_ttm", "dividend_yield",
+    "revenue_growth_ttm", "oper_margin_ttm", "gross_margin_ttm",
+    "fcf_margin_ttm", "market_cap", "beta",
+]
 
 
-def _clean_float(v: float) -> float | None:
-    """Replace NaN / Inf with None so JSON serialisation is clean."""
+def _clean(v) -> float | int | str | None:
+    """Replace NaN/Inf with None, round floats."""
     if v is None:
         return None
     try:
-        if math.isnan(v) or math.isinf(v):
-            return None
-    except TypeError:
+        if isinstance(v, float):
+            if math.isnan(v) or math.isinf(v):
+                return None
+            return round(v, 4)
+        if isinstance(v, (int,)):
+            return v
+    except (TypeError, ValueError):
         pass
-    return round(float(v), 4)
+    return v
 
 
 def _row_to_dict(row: pd.Series, rank: int) -> dict:
-    """Convert a DataFrame row to a clean dict ready for JSON output."""
     d: dict = {"rank": rank}
     for col in _META_COLS:
         d[col] = str(row.get(col, "")) if col in row.index else ""
-    for col in _SCORE_COLS + _FACTOR_COLS:
+    for col in _SCORE_COLS + _PRICE_COLS + _FUNDAMENTAL_COLS:
         raw = row.get(col, None)
-        d[col] = _clean_float(raw) if raw is not None else None
+        d[col] = _clean(raw)
     return d
 
 
 def run() -> None:
-    """
-    Main entry point. Reads ranks.csv, builds and writes the three JSON files.
-    """
     if not _RANKS_CSV.exists():
-        raise FileNotFoundError(
-            f"ranks.csv not found at {_RANKS_CSV}. "
-            "Run compute_factors first."
-        )
+        raise FileNotFoundError(f"ranks.csv not found at {_RANKS_CSV}. Run compute_factors first.")
 
     df = pd.read_csv(_RANKS_CSV)
     logger.info("Loaded ranks.csv: %d rows", len(df))
@@ -101,44 +90,44 @@ def run() -> None:
         logger.error("ranks.csv is empty — nothing to publish")
         return
 
-    # Ensure sorted by composite_score descending
     if "composite_score" in df.columns:
         df = df.sort_values("composite_score", ascending=False).reset_index(drop=True)
 
     as_of = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # ── ranked_stocks.json ──────────────────────────────────────────────────
-    ranked_stocks = [
-        _row_to_dict(row, rank=i + 1)
-        for i, (_, row) in enumerate(df.iterrows())
-    ]
+    # ── ranked_stocks.json ──
+    ranked = [_row_to_dict(row, rank=i + 1) for i, (_, row) in enumerate(df.iterrows())]
+    write_json(ranked, APP_DATA / "ranked_stocks.json", indent=None)  # compact for 500 rows
+    logger.info("Wrote ranked_stocks.json (%d entries, %.0f KB)",
+                len(ranked), (APP_DATA / "ranked_stocks.json").stat().st_size / 1024)
 
-    write_json(ranked_stocks, APP_DATA / "ranked_stocks.json", indent=2)
-    logger.info("Wrote ranked_stocks.json (%d entries)", len(ranked_stocks))
+    # ── market_summary.json ──
+    top = df.iloc[0]
+    bottom = df.iloc[-1]
 
-    # ── market_summary.json ─────────────────────────────────────────────────
-    top_row = df.iloc[0]
-    bottom_row = df.iloc[-1]
-    median_composite = _clean_float(df["composite_score"].median()) if "composite_score" in df.columns else None
+    # Sector breakdown
+    sector_counts = df["sector"].value_counts().to_dict() if "sector" in df.columns else {}
 
-    market_summary = {
+    summary = {
         "universe_size": len(df),
-        "top_symbol": str(top_row.get("ticker", "")),
-        "top_score": _clean_float(top_row.get("composite_score", None)),
-        "top_sector": str(top_row.get("sector", "")),
-        "bottom_symbol": str(bottom_row.get("ticker", "")),
-        "bottom_score": _clean_float(bottom_row.get("composite_score", None)),
-        "median_composite": median_composite,
+        "top_symbol": str(top.get("ticker", "")),
+        "top_score": _clean(top.get("composite_score")),
+        "top_sector": str(top.get("sector", "")),
+        "bottom_symbol": str(bottom.get("ticker", "")),
+        "bottom_score": _clean(bottom.get("composite_score")),
+        "median_composite": _clean(df["composite_score"].median()) if "composite_score" in df.columns else None,
+        "avg_composite": _clean(df["composite_score"].mean()) if "composite_score" in df.columns else None,
+        "avg_pe": _clean(df["pe_ratio"].median()) if "pe_ratio" in df.columns else None,
+        "avg_roe": _clean(df["roe"].median()) if "roe" in df.columns else None,
+        "sector_counts": sector_counts,
         "as_of": as_of,
     }
+    write_json(summary, APP_DATA / "market_summary.json")
+    logger.info("Wrote market_summary.json (top=%s)", summary["top_symbol"])
 
-    write_json(market_summary, APP_DATA / "market_summary.json", indent=2)
-    logger.info("Wrote market_summary.json (top=%s)", market_summary["top_symbol"])
-
-    # ── leaders.json ────────────────────────────────────────────────────────
-    leaders = ranked_stocks[:_N_LEADERS]
-
-    write_json(leaders, APP_DATA / "leaders.json", indent=2)
+    # ── leaders.json ──
+    leaders = ranked[:_N_LEADERS]
+    write_json(leaders, APP_DATA / "leaders.json")
     logger.info("Wrote leaders.json (%d entries)", len(leaders))
 
 
