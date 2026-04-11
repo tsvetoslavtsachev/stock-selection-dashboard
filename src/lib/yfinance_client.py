@@ -96,7 +96,9 @@ def get_fundamentals(symbol: str) -> dict[str, Any]:
             result["debt_equity"] = result["debt_equity"] / 100.0  # yf returns as %
 
         result["eps_ttm"] = info.get("trailingEps")
-        result["dividend_yield"] = info.get("dividendYield")
+        # yfinance returns dividendYield in percent (e.g. 2.5 means 2.5%)
+        _dy = info.get("dividendYield")
+        result["dividend_yield"] = _dy / 100.0 if _dy is not None else None
         result["revenue_growth_ttm"] = info.get("revenueGrowth")
         result["oper_margin_ttm"] = info.get("operatingMargins")
         result["gross_margin_ttm"] = info.get("grossMargins")
