@@ -1,10 +1,26 @@
 {
-  "universe_size": 10,
-  "top_symbol": "NVDA",
-  "top_score": 0.812,
-  "top_sector": "Technology",
-  "bottom_symbol": "XOM",
-  "bottom_score": 0.271,
-  "median_composite": 0.523,
-  "as_of": "2026-04-11T21:00:00Z"
+  "universe_size": 503,
+  "top_symbol": "APA",
+  "top_score": 0.7968,
+  "top_sector": "Energy",
+  "bottom_symbol": "AXON",
+  "bottom_score": 0.2076,
+  "median_composite": 0.5054,
+  "avg_composite": 0.4981,
+  "avg_pe": 24.7917,
+  "avg_roe": 0.1546,
+  "sector_counts": {
+    "Industrials": 79,
+    "Financials": 76,
+    "Information Technology": 73,
+    "Health Care": 58,
+    "Consumer Discretionary": 48,
+    "Consumer Staples": 36,
+    "Utilities": 31,
+    "Real Estate": 31,
+    "Materials": 26,
+    "Communication Services": 23,
+    "Energy": 22
+  },
+  "as_of": "2026-04-11T22:03:55Z"
 }
