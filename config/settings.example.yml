@@ -1,0 +1,83 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Stock Selection Dashboard — Settings
+# ─────────────────────────────────────────────────────────────────────────────
+# Copy this file to config/settings.yml before running the pipeline.
+# config/settings.yml is listed in .gitignore and MUST NOT be committed.
+#
+# API keys are NOT stored here. They are read from environment variables.
+# See the "Environment variables" section in README.md for setup instructions.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Project metadata ──────────────────────────────────────────────────────────
+project:
+  name:           "Stock Selection Dashboard"
+  market:         "US"                    # market identifier shown in the UI
+  benchmark:      "SPY"                   # benchmark ticker for relative metrics
+  base_currency:  "USD"
+
+# ── API configuration ─────────────────────────────────────────────────────────
+api:
+  # Alpha Vantage API key.
+  # Value must be the literal string "ENV:ALPHA_VANTAGE_API_KEY" — the pipeline
+  # reads it from the environment variable of that name at runtime.
+  # Never paste your actual key here.
+  alpha_vantage_key: "ENV:ALPHA_VANTAGE_API_KEY"
+
+  # SEC EDGAR requires a descriptive User-Agent header (name + contact email).
+  # Replace with your real name and email to comply with SEC developer policy:
+  # https://www.sec.gov/developer
+  sec_user_agent: "StockDashboard yourname@email.com"
+
+  # Seconds to wait between SEC EDGAR requests (~8 req/s stays within limits).
+  sec_rate_limit_delay: 0.12
+
+  # Seconds to wait between Alpha Vantage requests.
+  # Free tier: 5 req/min  → 12 s is safe.
+  # Premium tier: reduce to 0.5–1 s.
+  alpha_vantage_rate_limit_delay: 12.0
+
+# ── Pipeline behaviour ────────────────────────────────────────────────────────
+pipeline:
+  # Hard cap on universe size. Prevents accidental large API quota burns.
+  max_universe_size: 100
+
+  # Re-fetch prices from Alpha Vantage even if a fresh local file exists.
+  # Set to false for faster local reruns when prices are already cached.
+  refresh_prices: true
+
+  # Re-fetch SEC EDGAR data even if local files already exist.
+  # Set to false to skip SEC calls during development / scoring-only runs.
+  refresh_sec: true
+
+  # Write output JSON files to app/data/ after scoring.
+  # Set to false for dry-run / debugging purposes.
+  publish_json: true
+
+  # Max calendar age (days) before a cached price file is considered stale.
+  price_max_age_days: 1
+
+  # Number of top stocks to include in leaders.json.
+  n_leaders: 10
+
+# ── Scoring weights ───────────────────────────────────────────────────────────
+# All weights within a group must sum to 1.0.
+scoring:
+  composite:
+    trend:    0.35
+    quality:  0.30
+    value:    0.20
+    risk:     0.15
+
+  trend:
+    ret_13w:  0.40
+    ret_26w:  0.30
+    ret_52w:  0.30
+
+  quality:
+    revenue_growth_ttm: 0.40
+    oper_margin_ttm:    0.30
+    fcf_margin_ttm:     0.30
+
+# ── Publish paths ─────────────────────────────────────────────────────────────
+publish:
+  app_data_path: "app/data"

@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock Selection Dashboard</title>
+
+  <!-- Fonts: Inter (body) + Geist Mono (numbers) from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ─── Design tokens ──────────────────────────────────────────── */
+    :root,
+    [data-theme="light"] {
+      --color-bg:               #f5f5f3;
+      --color-surface:          #ffffff;
+      --color-surface-2:        #f9f9f8;
+      --color-surface-offset:   #ededeb;
+      --color-border:           #dddcda;
+      --color-divider:          #e8e8e6;
+      --color-text:             #141412;
+      --color-text-muted:       #6b6a68;
+      --color-text-faint:       #b2b1af;
+      --color-accent:           #0067b3;
+      --color-accent-hover:     #0052a0;
+      --color-accent-dim:       #d6e8f5;
+
+      /* score colours */
+      --color-bull:             #1c8a3e;
+      --color-bull-bg:          #d4eddc;
+      --color-neutral:          #a36a00;
+      --color-neutral-bg:       #fdecd0;
+      --color-bear:             #b92525;
+      --color-bear-bg:          #fcd9d9;
+
+      --font-body:    'Inter', system-ui, sans-serif;
+      --font-mono:    'Geist Mono', 'Fira Code', monospace;
+
+      --text-xs:    clamp(0.6875rem, 0.65rem + 0.2vw, 0.75rem);
+      --text-sm:    clamp(0.75rem,   0.72rem + 0.2vw, 0.8125rem);
+      --text-base:  clamp(0.8125rem, 0.78rem + 0.25vw, 0.875rem);
+      --text-lg:    clamp(1rem,      0.95rem + 0.3vw,  1.125rem);
+      --text-xl:    clamp(1.25rem,   1.1rem  + 0.6vw,  1.5rem);
+
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-10: 2.5rem;
+      --space-12: 3rem;
+
+      --radius-sm: 0.25rem;
+      --radius-md: 0.375rem;
+      --radius-lg: 0.5rem;
+      --radius-full: 9999px;
+
+      --shadow-sm:  0 1px 2px rgba(0,0,0,.06);
+      --shadow-md:  0 3px 10px rgba(0,0,0,.08);
+
+      --transition: 150ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    [data-theme="dark"] {
+      --color-bg:               #0e0e0d;
+      --color-surface:          #161614;
+      --color-surface-2:        #1c1c1a;
+      --color-surface-offset:   #202020;
+      --color-border:           #2a2a28;
+      --color-divider:          #222220;
+      --color-text:             #d6d5d3;
+      --color-text-muted:       #6e6d6b;
+      --color-text-faint:       #3f3e3c;
+      --color-accent:           #3b9de8;
+      --color-accent-hover:     #5eb1f0;
+      --color-accent-dim:       #1a2f42;
+
+      --color-bull:             #3db870;
+      --color-bull-bg:          #0d2e1c;
+      --color-neutral:          #e0a030;
+      --color-neutral-bg:       #2a1f08;
+      --color-bear:             #e85252;
+      --color-bear-bg:          #2b0e0e;
+
+      --shadow-sm:  0 1px 2px rgba(0,0,0,.3);
+      --shadow-md:  0 3px 10px rgba(0,0,0,.4);
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme]) {
+        --color-bg:               #f5f5f3;
+        --color-surface:          #ffffff;
+        --color-surface-2:        #f9f9f8;
+        --color-surface-offset:   #ededeb;
+        --color-border:           #dddcda;
+        --color-divider:          #e8e8e6;
+        --color-text:             #141412;
+        --color-text-muted:       #6b6a68;
+        --color-text-faint:       #b2b1af;
+        --color-accent:           #0067b3;
+        --color-accent-hover:     #0052a0;
+        --color-accent-dim:       #d6e8f5;
+        --color-bull:             #1c8a3e;
+        --color-bull-bg:          #d4eddc;
+        --color-neutral:          #a36a00;
+        --color-neutral-bg:       #fdecd0;
+        --color-bear:             #b92525;
+        --color-bear-bg:          #fcd9d9;
+      }
+    }
+
+    /* ─── Reset & base ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      font-feature-settings: "tnum" 1, "ss01" 1;
+    }
+    body {
+      min-height: 100dvh;
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      color: var(--color-text);
+      background: var(--color-bg);
+      line-height: 1.5;
+    }
+    button { cursor: pointer; background: none; border: none; font: inherit; color: inherit; }
+    input, select { font: inherit; color: inherit; }
+    table { border-collapse: collapse; width: 100%; }
+    a { color: var(--color-accent); text-decoration: none; }
+    a:hover { color: var(--color-accent-hover); }
+
+    /* tabular numbers everywhere numeric */
+    .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums lining-nums; letter-spacing: -0.01em; }
+
+    /* ─── Layout ─────────────────────────────────────────────────── */
+    .page-wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 var(--space-6);
+    }
+
+    /* ─── Header ─────────────────────────────────────────────────── */
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      backdrop-filter: blur(8px);
+    }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 48px;
+      gap: var(--space-4);
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .logo-mark {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--color-text);
+    }
+    .logo-icon {
+      width: 20px; height: 20px;
+      color: var(--color-accent);
+      flex-shrink: 0;
+    }
+    .header-sep {
+      width: 1px;
+      height: 18px;
+      background: var(--color-border);
+    }
+    .header-label {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      letter-spacing: 0.02em;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .last-updated {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-text-faint);
+    }
+    #theme-toggle {
+      width: 30px; height: 30px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-text-muted);
+      transition: background var(--transition), color var(--transition);
+    }
+    #theme-toggle:hover { background: var(--color-surface-offset); color: var(--color-text); }
+
+    /* ─── Status bar ─────────────────────────────────────────────── */
+    #status-bar {
+      background: var(--color-surface-2);
+      border-bottom: 1px solid var(--color-divider);
+      padding: var(--space-2) 0;
+    }
+    .status-inner {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+    }
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: var(--radius-full);
+      background: var(--color-text-faint);
+      flex-shrink: 0;
+    }
+    .status-dot.live { background: var(--color-bull); }
+
+    /* ─── Main content ───────────────────────────────────────────── */
+    .main-content { padding: var(--space-6) 0 var(--space-12); }
+
+    /* ─── KPI bar ────────────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-3);
+      margin-bottom: var(--space-6);
+    }
+    .kpi-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4) var(--space-5);
+    }
+    .kpi-label {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-weight: 500;
+      margin-bottom: var(--space-1);
+    }
+    .kpi-value {
+      font-family: var(--font-mono);
+      font-size: var(--text-xl);
+      font-weight: 500;
+      color: var(--color-text);
+      line-height: 1.1;
+    }
+    .kpi-sub {
+      font-size: var(--text-xs);
+      color: var(--color-text-faint);
+      margin-top: var(--space-1);
+    }
+
+    /* ─── Section headers ────────────────────────────────────────── */
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-3);
+      margin-bottom: var(--space-4);
+    }
+    .section-title {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+    .section-count {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-text-faint);
+    }
+
+    /* ─── Leaders strip ──────────────────────────────────────────── */
+    .leaders-strip {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: var(--space-3);
+      margin-bottom: var(--space-8);
+    }
+    .leader-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-4);
+      cursor: default;
+      transition: border-color var(--transition), box-shadow var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+    .leader-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--color-accent);
+      opacity: 0;
+      transition: opacity var(--transition);
+    }
+    .leader-card:hover { border-color: var(--color-accent); box-shadow: var(--shadow-md); }
+    .leader-card:hover::before { opacity: 1; }
+    .leader-rank {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-text-faint);
+      margin-bottom: var(--space-2);
+    }
+    .leader-ticker {
+      font-family: var(--font-mono);
+      font-size: var(--text-lg);
+      font-weight: 600;
+      color: var(--color-text);
+      line-height: 1;
+    }
+    .leader-name {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      margin-top: var(--space-1);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .leader-score {
+      display: inline-flex;
+      align-items: center;
+      margin-top: var(--space-3);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      padding: 2px var(--space-2);
+      border-radius: var(--radius-full);
+    }
+    .leader-bars {
+      margin-top: var(--space-3);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+    }
+    .mini-bar-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .mini-bar-label {
+      font-size: var(--text-xs);
+      color: var(--color-text-faint);
+      width: 36px;
+      flex-shrink: 0;
+      font-family: var(--font-mono);
+    }
+    .mini-bar-track {
+      flex: 1;
+      height: 4px;
+      background: var(--color-surface-offset);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+    .mini-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      background: var(--color-accent);
+      transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* ─── Filter bar ─────────────────────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-4);
+    }
+    .filter-search {
+      position: relative;
+      flex: 1;
+      min-width: 180px;
+      max-width: 280px;
+    }
+    .filter-search-icon {
+      position: absolute;
+      left: var(--space-3);
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--color-text-faint);
+      pointer-events: none;
+    }
+    .filter-input {
+      width: 100%;
+      height: 34px;
+      padding: 0 var(--space-3) 0 var(--space-8);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+      color: var(--color-text);
+      outline: none;
+      transition: border-color var(--transition);
+    }
+    .filter-input:focus { border-color: var(--color-accent); }
+    .filter-input::placeholder { color: var(--color-text-faint); }
+
+    .filter-select {
+      height: 34px;
+      padding: 0 var(--space-3);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+      color: var(--color-text);
+      outline: none;
+      cursor: pointer;
+      transition: border-color var(--transition);
+      min-width: 130px;
+    }
+    .filter-select:focus { border-color: var(--color-accent); }
+
+    .filter-label {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      white-space: nowrap;
+    }
+    .filter-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .result-count {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-text-faint);
+    }
+    .btn-reset {
+      font-size: var(--text-xs);
+      color: var(--color-accent);
+      padding: 0;
+      transition: color var(--transition);
+    }
+    .btn-reset:hover { color: var(--color-accent-hover); }
+
+    /* ─── Table ──────────────────────────────────────────────────── */
+    .table-wrap {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      overflow-x: auto;
+    }
+    .data-table {
+      min-width: 900px;
+      font-size: var(--text-sm);
+    }
+    .data-table thead {
+      background: var(--color-surface-2);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .data-table th {
+      padding: var(--space-3) var(--space-4);
+      text-align: left;
+      font-size: var(--text-xs);
+      font-weight: 600;
+      color: var(--color-text-muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      user-select: none;
+      cursor: pointer;
+      transition: color var(--transition);
+    }
+    .data-table th:hover { color: var(--color-text); }
+    .data-table th.active { color: var(--color-accent); }
+    .data-table th.num-col { text-align: right; }
+
+    .sort-icon {
+      display: inline-block;
+      margin-left: var(--space-1);
+      opacity: 0.4;
+      vertical-align: middle;
+      font-style: normal;
+      font-size: 10px;
+    }
+    .sort-icon.asc::after  { content: '▲'; }
+    .sort-icon.desc::after { content: '▼'; }
+    .sort-icon.none::after { content: '⇅'; }
+
+    .data-table tbody tr {
+      border-bottom: 1px solid var(--color-divider);
+      transition: background var(--transition);
+      cursor: pointer;
+    }
+    .data-table tbody tr:last-child { border-bottom: none; }
+    .data-table tbody tr:hover { background: var(--color-surface-2); }
+    .data-table tbody tr.expanded { background: var(--color-surface-2); }
+    .data-table tbody tr.expanded:hover { background: var(--color-surface-offset); }
+
+    .data-table td {
+      padding: var(--space-3) var(--space-4);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .data-table td.num-col {
+      text-align: right;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+    }
+
+    .cell-ticker {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--color-text);
+      font-size: var(--text-sm);
+    }
+    .cell-name {
+      color: var(--color-text-muted);
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cell-sector {
+      display: inline-block;
+      font-size: var(--text-xs);
+      padding: 2px var(--space-2);
+      border-radius: var(--radius-full);
+      background: var(--color-surface-offset);
+      color: var(--color-text-muted);
+    }
+    .cell-ret {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+    }
+    .cell-ret.pos { color: var(--color-bull); }
+    .cell-ret.neg { color: var(--color-bear); }
+    .cell-ret.flat { color: var(--color-text-faint); }
+
+    /* Score badge */
+    .score-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      min-width: 44px;
+      padding: 2px var(--space-2);
+      border-radius: var(--radius-sm);
+    }
+    .score-badge.bull  { color: var(--color-bull);    background: var(--color-bull-bg); }
+    .score-badge.mid   { color: var(--color-neutral);  background: var(--color-neutral-bg); }
+    .score-badge.bear  { color: var(--color-bear);     background: var(--color-bear-bg); }
+
+    /* Detail row */
+    .detail-row { display: none; }
+    .detail-row.open { display: table-row; }
+    .detail-cell {
+      padding: var(--space-4) var(--space-5);
+      background: var(--color-surface-offset);
+      border-bottom: 1px solid var(--color-divider);
+    }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: var(--space-4);
+    }
+    .detail-item-label {
+      font-size: var(--text-xs);
+      color: var(--color-text-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: var(--space-1);
+    }
+    .detail-item-value {
+      font-family: var(--font-mono);
+      font-size: var(--text-base);
+      font-weight: 500;
+      color: var(--color-text);
+    }
+    .detail-score-bars {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      margin-top: var(--space-2);
+    }
+    .detail-bar-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .detail-bar-label {
+      width: 60px;
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+    }
+    .detail-bar-track {
+      flex: 1;
+      max-width: 200px;
+      height: 6px;
+      background: var(--color-surface-2);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+    .detail-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .detail-bar-val {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      width: 36px;
+      text-align: right;
+    }
+
+    /* bar colours by factor */
+    .bar-trend    { background: var(--color-accent); }
+    .bar-quality  { background: var(--color-bull); }
+    .bar-value    { background: var(--color-neutral); }
+    .bar-risk     { background: var(--color-bear); }
+
+    /* ─── Empty / loading states ─────────────────────────────────── */
+    .state-message {
+      padding: var(--space-12) var(--space-4);
+      text-align: center;
+      color: var(--color-text-faint);
+      font-size: var(--text-sm);
+    }
+    .loading-spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid var(--color-border);
+      border-top-color: var(--color-accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: var(--space-2);
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-banner {
+      display: none;
+      padding: var(--space-3) var(--space-4);
+      background: var(--color-bear-bg);
+      border: 1px solid var(--color-bear);
+      border-radius: var(--radius-md);
+      color: var(--color-bear);
+      font-size: var(--text-sm);
+      margin-bottom: var(--space-4);
+    }
+    .error-banner.visible { display: block; }
+
+    /* ─── Footer ─────────────────────────────────────────────────── */
+    .site-footer {
+      border-top: 1px solid var(--color-border);
+      padding: var(--space-5) 0;
+      margin-top: var(--space-8);
+    }
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      flex-wrap: wrap;
+    }
+    .footer-data-sources {
+      font-size: var(--text-xs);
+      color: var(--color-text-faint);
+    }
+    .footer-data-sources strong { color: var(--color-text-muted); }
+    .footer-right {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-text-faint);
+    }
+
+    /* ─── Responsive ─────────────────────────────────────────────── */
+    @media (max-width: 1023px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .leaders-strip { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 639px) {
+      .page-wrap { padding: 0 var(--space-4); }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
+      .leaders-strip { grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
+      .header-label, .last-updated { display: none; }
+      .filter-bar { gap: var(--space-2); }
+      .filter-search { max-width: none; flex: 1 1 100%; }
+      .filter-select { flex: 1; }
+      .footer-inner { flex-direction: column; align-items: flex-start; }
+    }
+    @media (max-width: 400px) {
+      .leaders-strip { grid-template-columns: 1fr 1fr; }
+      .leaders-strip .leader-card:nth-child(n+5) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ─── Header ───────────────────────────────────────────────────── -->
+  <header class="site-header">
+    <div class="page-wrap">
+      <div class="header-inner">
+        <div class="header-left">
+          <div class="logo-mark">
+            <svg class="logo-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+              <polyline points="2,14 6,9 10,11 14,5 18,7"/>
+              <rect x="2" y="15" width="16" height="1.5" rx="0.75" fill="currentColor" stroke="none"/>
+            </svg>
+            EQUITY RADAR
+          </div>
+          <div class="header-sep"></div>
+          <span class="header-label">Factor-Scored Stock Dashboard</span>
+        </div>
+        <div class="header-right">
+          <span class="last-updated" id="header-timestamp">—</span>
+          <button id="theme-toggle" aria-label="Switch to light mode" data-theme-toggle>
+            <!-- icon injected by JS -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── Status bar ───────────────────────────────────────────────── -->
+  <div id="status-bar">
+    <div class="page-wrap">
+      <div class="status-inner">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Loading data…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Main ─────────────────────────────────────────────────────── -->
+  <main class="main-content">
+    <div class="page-wrap">
+
+      <!-- Error banner -->
+      <div class="error-banner" id="error-banner">
+        Could not load dashboard data. Make sure the pipeline has run and JSON files exist in <code>./data/</code>.
+      </div>
+
+      <!-- KPI bar -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Universe Size</div>
+          <div class="kpi-value num" id="kpi-universe">—</div>
+          <div class="kpi-sub">enabled tickers</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Top Ranked</div>
+          <div class="kpi-value num" id="kpi-top">—</div>
+          <div class="kpi-sub" id="kpi-top-sector">—</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Avg Composite</div>
+          <div class="kpi-value num" id="kpi-avg">—</div>
+          <div class="kpi-sub">cross-universe mean</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Last Updated</div>
+          <div class="kpi-value" id="kpi-date" style="font-size: var(--text-base); font-family: var(--font-mono);">—</div>
+          <div class="kpi-sub" id="kpi-time">—</div>
+        </div>
+      </div>
+
+      <!-- Leaders -->
+      <div class="section-header">
+        <span class="section-title">Leaders</span>
+        <span class="section-count">Top 5 by Composite Score</span>
+      </div>
+      <div class="leaders-strip" id="leaders-strip">
+        <!-- injected by JS -->
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <div class="filter-search">
+          <svg class="filter-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input class="filter-input" id="search-input" type="search" placeholder="Search symbol or name…" autocomplete="off" />
+        </div>
+        <select class="filter-select" id="sector-filter">
+          <option value="">All Sectors</option>
+        </select>
+        <span class="filter-label">Min composite:</span>
+        <select class="filter-select" id="score-filter" style="min-width:90px;">
+          <option value="0">Any</option>
+          <option value="0.3">≥ 0.30</option>
+          <option value="0.4">≥ 0.40</option>
+          <option value="0.5">≥ 0.50</option>
+          <option value="0.6">≥ 0.60</option>
+        </select>
+        <div class="filter-right">
+          <span class="result-count" id="result-count">— stocks</span>
+          <button class="btn-reset" id="btn-reset">Reset filters</button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="section-header">
+        <span class="section-title">Ranked Universe</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table" id="main-table" aria-label="Ranked stocks">
+          <thead>
+            <tr>
+              <th data-col="rank"             class="active">  # <span class="sort-icon asc"></span></th>
+              <th data-col="ticker">              Symbol <span class="sort-icon none"></span></th>
+              <th data-col="name">                Name <span class="sort-icon none"></span></th>
+              <th data-col="sector">              Sector <span class="sort-icon none"></span></th>
+              <th data-col="ret_13w"   class="num-col">13W% <span class="sort-icon none"></span></th>
+              <th data-col="ret_26w"   class="num-col">26W% <span class="sort-icon none"></span></th>
+              <th data-col="ret_52w"   class="num-col">52W% <span class="sort-icon none"></span></th>
+              <th data-col="trend_score"   class="num-col">Trend <span class="sort-icon none"></span></th>
+              <th data-col="quality_score" class="num-col">Quality <span class="sort-icon none"></span></th>
+              <th data-col="value_score"   class="num-col">Value <span class="sort-icon none"></span></th>
+              <th data-col="risk_score"    class="num-col">Risk <span class="sort-icon none"></span></th>
+              <th data-col="composite_score" class="num-col">Composite <span class="sort-icon none"></span></th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <tr><td colspan="12" class="state-message">
+              <span class="loading-spinner"></span> Loading…
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ─── Footer ───────────────────────────────────────────────────── -->
+  <footer class="site-footer">
+    <div class="page-wrap">
+      <div class="footer-inner">
+        <div class="footer-data-sources">
+          <strong>Data:</strong> SEC EDGAR &nbsp;·&nbsp; Alpha Vantage &nbsp;·&nbsp; GitHub Actions
+        </div>
+        <div class="footer-right" id="footer-build">EQUITY RADAR</div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ─── JavaScript ───────────────────────────────────────────────── -->
+  <script>
+  (() => {
+    'use strict';
+
+    /* ── Theme toggle ─────────────────────────────────────────────── */
+    const html = document.documentElement;
+    let theme = 'dark';
+    html.setAttribute('data-theme', theme);
+
+    const themeBtn = document.getElementById('theme-toggle');
+    function setThemeIcon(t) {
+      themeBtn.innerHTML = t === 'dark'
+        ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`
+        : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`;
+      themeBtn.setAttribute('aria-label', 'Switch to ' + (t === 'dark' ? 'light' : 'dark') + ' mode');
+    }
+    setThemeIcon(theme);
+    themeBtn.addEventListener('click', () => {
+      theme = theme === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', theme);
+      setThemeIcon(theme);
+    });
+
+    /* ── Helpers ──────────────────────────────────────────────────── */
+    const fmtPct  = v => (v == null || isNaN(v)) ? '—' : ((v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%');
+    const fmtScore = v => (v == null || isNaN(v)) ? '—' : v.toFixed(3);
+
+    function scoreBadgeClass(v) {
+      if (v == null || isNaN(v)) return '';
+      if (v >= 0.6) return 'bull';
+      if (v >= 0.4) return 'mid';
+      return 'bear';
+    }
+
+    function retClass(v) {
+      if (v == null || isNaN(v)) return 'flat';
+      if (v > 0.001) return 'pos';
+      if (v < -0.001) return 'neg';
+      return 'flat';
+    }
+
+    function barColor(pct) {
+      // interpolate from bear→neutral→bull based on percentage 0-1
+      return pct >= 0.6 ? 'var(--color-bull)'
+           : pct >= 0.4 ? 'var(--color-neutral)'
+           :               'var(--color-bear)';
+    }
+
+    function formatDatetime(iso) {
+      if (!iso) return { date: '—', time: '—', short: '—' };
+      try {
+        const d = new Date(iso);
+        return {
+          date: d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+          time: d.toUTCString().slice(17, 25) + ' UTC',
+          short: d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        };
+      } catch { return { date: '—', time: '—', short: '—' }; }
+    }
+
+    /* ── State ────────────────────────────────────────────────────── */
+    let allStocks = [];
+    let visibleStocks = [];
+    let sortCol = 'rank';
+    let sortDir = 'asc'; // asc = rank 1 first
+
+    /* ── Status ───────────────────────────────────────────────────── */
+    function setStatus(text, live = false) {
+      document.getElementById('status-text').textContent = text;
+      const dot = document.getElementById('status-dot');
+      dot.classList.toggle('live', live);
+    }
+
+    /* ── Data loading ─────────────────────────────────────────────── */
+    async function loadJSON(path) {
+      const r = await fetch(path);
+      if (!r.ok) throw new Error(`HTTP ${r.status} for ${path}`);
+      return r.json();
+    }
+
+    async function init() {
+      try {
+        const [summary, stocks] = await Promise.all([
+          loadJSON('./data/market_summary.json'),
+          loadJSON('./data/ranked_stocks.json'),
+        ]);
+        renderKPIs(summary, stocks);
+        renderLeaders(stocks.slice(0, 5));
+        buildSectorFilter(stocks);
+        allStocks = stocks.map((s, i) => ({ ...s, rank: i + 1 }));
+        visibleStocks = [...allStocks];
+        renderTable();
+        setStatus(`Data as of ${formatDatetime(summary.as_of).date}`, true);
+        document.getElementById('header-timestamp').textContent = formatDatetime(summary.as_of).short;
+        document.getElementById('footer-build').textContent =
+          `EQUITY RADAR · Build ${formatDatetime(summary.as_of).date}`;
+      } catch (err) {
+        console.error(err);
+        document.getElementById('error-banner').classList.add('visible');
+        document.getElementById('table-body').innerHTML =
+          `<tr><td colspan="12" class="state-message">No data available. Run the pipeline first.</td></tr>`;
+        setStatus('Data unavailable', false);
+      }
+    }
+
+    /* ── KPIs ─────────────────────────────────────────────────────── */
+    function renderKPIs(summary, stocks) {
+      document.getElementById('kpi-universe').textContent = summary.universe_size ?? stocks.length;
+      document.getElementById('kpi-top').textContent      = summary.top_symbol ?? '—';
+      document.getElementById('kpi-top-sector').textContent = summary.top_sector ?? '—';
+
+      const avg = stocks.length
+        ? (stocks.reduce((a, s) => a + (s.composite_score || 0), 0) / stocks.length).toFixed(3)
+        : '—';
+      document.getElementById('kpi-avg').textContent = avg;
+
+      const dt = formatDatetime(summary.as_of);
+      document.getElementById('kpi-date').textContent = dt.date;
+      document.getElementById('kpi-time').textContent = dt.time;
+    }
+
+    /* ── Leaders ──────────────────────────────────────────────────── */
+    function renderLeaders(top5) {
+      const strip = document.getElementById('leaders-strip');
+      strip.innerHTML = top5.map((s, i) => {
+        const sc = s.composite_score;
+        const cls = scoreBadgeClass(sc);
+        return `
+          <div class="leader-card">
+            <div class="leader-rank">#${i + 1}</div>
+            <div class="leader-ticker">${s.ticker || '—'}</div>
+            <div class="leader-name" title="${s.name || ''}">${s.name || '—'}</div>
+            <div class="leader-score score-badge ${cls}">${fmtScore(sc)}</div>
+            <div class="leader-bars">
+              ${miniBar('TRD', s.trend_score)}
+              ${miniBar('QUA', s.quality_score)}
+              ${miniBar('VAL', s.value_score)}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function miniBar(label, val) {
+      const pct = Math.max(0, Math.min(1, val || 0));
+      return `
+        <div class="mini-bar-row">
+          <span class="mini-bar-label">${label}</span>
+          <div class="mini-bar-track">
+            <div class="mini-bar-fill" style="width:${(pct * 100).toFixed(1)}%; background:${barColor(pct)};"></div>
+          </div>
+        </div>`;
+    }
+
+    /* ── Sector filter ────────────────────────────────────────────── */
+    function buildSectorFilter(stocks) {
+      const sectors = [...new Set(stocks.map(s => s.sector).filter(Boolean))].sort();
+      const sel = document.getElementById('sector-filter');
+      sectors.forEach(sec => {
+        const opt = document.createElement('option');
+        opt.value = sec;
+        opt.textContent = sec;
+        sel.appendChild(opt);
+      });
+    }
+
+    /* ── Filtering ────────────────────────────────────────────────── */
+    function applyFilters() {
+      const q      = document.getElementById('search-input').value.trim().toLowerCase();
+      const sector = document.getElementById('sector-filter').value;
+      const minSc  = parseFloat(document.getElementById('score-filter').value) || 0;
+
+      visibleStocks = allStocks.filter(s => {
+        if (q && !(s.ticker || '').toLowerCase().includes(q) && !(s.name || '').toLowerCase().includes(q)) return false;
+        if (sector && s.sector !== sector) return false;
+        if ((s.composite_score || 0) < minSc) return false;
+        return true;
+      });
+
+      sortStocks();
+      renderTable();
+      document.getElementById('result-count').textContent = `${visibleStocks.length} stock${visibleStocks.length !== 1 ? 's' : ''}`;
+    }
+
+    /* ── Sorting ──────────────────────────────────────────────────── */
+    function sortStocks() {
+      const num = ['rank','ret_13w','ret_26w','ret_52w','trend_score','quality_score','value_score','risk_score','composite_score'];
+      visibleStocks.sort((a, b) => {
+        let av = a[sortCol], bv = b[sortCol];
+        if (num.includes(sortCol)) {
+          av = parseFloat(av) || 0;
+          bv = parseFloat(bv) || 0;
+          return sortDir === 'asc' ? av - bv : bv - av;
+        }
+        av = String(av || '').toLowerCase();
+        bv = String(bv || '').toLowerCase();
+        return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+      });
+    }
+
+    /* ── Table render ─────────────────────────────────────────────── */
+    function renderTable() {
+      const tbody = document.getElementById('table-body');
+      if (!visibleStocks.length) {
+        tbody.innerHTML = `<tr><td colspan="12" class="state-message">No stocks match the current filters.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = visibleStocks.map(s => {
+        const csc = scoreBadgeClass(s.composite_score);
+        return `
+          <tr class="stock-row" data-ticker="${s.ticker}">
+            <td class="num-col num">${s.rank}</td>
+            <td><span class="cell-ticker">${s.ticker || '—'}</span></td>
+            <td><span class="cell-name" title="${s.name || ''}">${s.name || '—'}</span></td>
+            <td><span class="cell-sector">${s.sector || '—'}</span></td>
+            <td class="num-col"><span class="cell-ret ${retClass(s.ret_13w)}">${fmtPct(s.ret_13w)}</span></td>
+            <td class="num-col"><span class="cell-ret ${retClass(s.ret_26w)}">${fmtPct(s.ret_26w)}</span></td>
+            <td class="num-col"><span class="cell-ret ${retClass(s.ret_52w)}">${fmtPct(s.ret_52w)}</span></td>
+            <td class="num-col"><span class="score-badge ${scoreBadgeClass(s.trend_score)}">${fmtScore(s.trend_score)}</span></td>
+            <td class="num-col"><span class="score-badge ${scoreBadgeClass(s.quality_score)}">${fmtScore(s.quality_score)}</span></td>
+            <td class="num-col"><span class="score-badge ${scoreBadgeClass(s.value_score)}">${fmtScore(s.value_score)}</span></td>
+            <td class="num-col"><span class="score-badge ${scoreBadgeClass(s.risk_score)}">${fmtScore(s.risk_score)}</span></td>
+            <td class="num-col"><span class="score-badge ${csc}" style="font-size:0.75rem; padding:3px 8px;">${fmtScore(s.composite_score)}</span></td>
+          </tr>
+          <tr class="detail-row" id="detail-${s.ticker}">
+            <td class="detail-cell" colspan="12">
+              ${renderDetailCell(s)}
+            </td>
+          </tr>`;
+      }).join('');
+
+      // Row click → toggle detail
+      tbody.querySelectorAll('.stock-row').forEach(row => {
+        row.addEventListener('click', () => {
+          const ticker = row.dataset.ticker;
+          const detailRow = document.getElementById(`detail-${ticker}`);
+          const wasOpen = detailRow.classList.contains('open');
+          // Close all
+          tbody.querySelectorAll('.detail-row.open').forEach(r => r.classList.remove('open'));
+          tbody.querySelectorAll('.stock-row.expanded').forEach(r => r.classList.remove('expanded'));
+          if (!wasOpen) {
+            detailRow.classList.add('open');
+            row.classList.add('expanded');
+          }
+        });
+      });
+    }
+
+    function renderDetailCell(s) {
+      const pct4 = v => (v == null || isNaN(v)) ? '—' : ((v * 100).toFixed(1) + '%');
+      return `
+        <div class="detail-grid">
+          <div>
+            <div class="detail-item-label">Rev Growth TTM</div>
+            <div class="detail-item-value ${retClass(s.revenue_growth_ttm)}">${pct4(s.revenue_growth_ttm)}</div>
+          </div>
+          <div>
+            <div class="detail-item-label">Operating Margin</div>
+            <div class="detail-item-value">${pct4(s.oper_margin_ttm)}</div>
+          </div>
+          <div>
+            <div class="detail-item-label">13W Return</div>
+            <div class="detail-item-value ${retClass(s.ret_13w)}">${fmtPct(s.ret_13w)}</div>
+          </div>
+          <div>
+            <div class="detail-item-label">26W Return</div>
+            <div class="detail-item-value ${retClass(s.ret_26w)}">${fmtPct(s.ret_26w)}</div>
+          </div>
+          <div>
+            <div class="detail-item-label">52W Return</div>
+            <div class="detail-item-value ${retClass(s.ret_52w)}">${fmtPct(s.ret_52w)}</div>
+          </div>
+          <div>
+            <div class="detail-item-label">Volatility 26W</div>
+            <div class="detail-item-value">${pct4(s.volatility_26w)}</div>
+          </div>
+        </div>
+        <div class="detail-score-bars" style="margin-top: var(--space-4); max-width: 360px;">
+          ${detailBar('Trend',   s.trend_score,   'bar-trend')}
+          ${detailBar('Quality', s.quality_score, 'bar-quality')}
+          ${detailBar('Value',   s.value_score,   'bar-value')}
+          ${detailBar('Risk',    s.risk_score,    'bar-risk')}
+        </div>`;
+    }
+
+    function detailBar(label, val, cls) {
+      const pct = Math.max(0, Math.min(1, val || 0));
+      return `
+        <div class="detail-bar-row">
+          <span class="detail-bar-label">${label}</span>
+          <div class="detail-bar-track">
+            <div class="detail-bar-fill ${cls}" style="width:${(pct * 100).toFixed(1)}%"></div>
+          </div>
+          <span class="detail-bar-val">${fmtScore(val)}</span>
+        </div>`;
+    }
+
+    /* ── Sort header clicks ───────────────────────────────────────── */
+    document.querySelectorAll('.data-table th[data-col]').forEach(th => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.col;
+        if (sortCol === col) {
+          sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          sortCol = col;
+          sortDir = ['rank','composite_score','trend_score','quality_score','value_score','risk_score','ret_13w','ret_26w','ret_52w'].includes(col)
+            ? 'desc' : 'asc';
+          // rank sorts ascending by default (rank 1 = best)
+          if (col === 'rank') sortDir = 'asc';
+        }
+        // Update header classes + icons
+        document.querySelectorAll('.data-table th[data-col]').forEach(h => {
+          const icon = h.querySelector('.sort-icon');
+          h.classList.remove('active');
+          if (icon) { icon.className = 'sort-icon none'; }
+        });
+        th.classList.add('active');
+        const icon = th.querySelector('.sort-icon');
+        if (icon) icon.className = `sort-icon ${sortDir}`;
+
+        sortStocks();
+        renderTable();
+      });
+    });
+
+    /* ── Filter events ────────────────────────────────────────────── */
+    document.getElementById('search-input').addEventListener('input',   applyFilters);
+    document.getElementById('sector-filter').addEventListener('change', applyFilters);
+    document.getElementById('score-filter').addEventListener('change',  applyFilters);
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      document.getElementById('search-input').value = '';
+      document.getElementById('sector-filter').value = '';
+      document.getElementById('score-filter').value = '0';
+      applyFilters();
+    });
+
+    /* ── Boot ─────────────────────────────────────────────────────── */
+    init();
+  })();
+  </script>
+
+</body>
+</html>

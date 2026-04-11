@@ -1,0 +1,7 @@
+[
+  {"rank":1,"ticker":"NVDA","name":"NVIDIA Corp.","sector":"Technology","composite_score":0.812,"trend_score":0.91,"quality_score":0.88,"value_score":0.55,"risk_score":0.42},
+  {"rank":2,"ticker":"MSFT","name":"Microsoft Corp.","sector":"Technology","composite_score":0.741,"trend_score":0.72,"quality_score":0.85,"value_score":0.48,"risk_score":0.78},
+  {"rank":3,"ticker":"META","name":"Meta Platforms Inc.","sector":"Technology","composite_score":0.716,"trend_score":0.68,"quality_score":0.81,"value_score":0.61,"risk_score":0.63},
+  {"rank":4,"ticker":"GOOGL","name":"Alphabet Inc.","sector":"Technology","composite_score":0.681,"trend_score":0.58,"quality_score":0.74,"value_score":0.71,"risk_score":0.71},
+  {"rank":5,"ticker":"AAPL","name":"Apple Inc.","sector":"Technology","composite_score":0.587,"trend_score":0.44,"quality_score":0.78,"value_score":0.39,"risk_score":0.74}
+]

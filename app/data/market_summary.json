@@ -1,0 +1,10 @@
+{
+  "universe_size": 10,
+  "top_symbol": "NVDA",
+  "top_score": 0.812,
+  "top_sector": "Technology",
+  "bottom_symbol": "XOM",
+  "bottom_score": 0.271,
+  "median_composite": 0.523,
+  "as_of": "2026-04-11T21:00:00Z"
+}

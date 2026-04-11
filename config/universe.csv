@@ -1,0 +1,21 @@
+symbol,cik,name,sector,industry,enabled
+AAPL,320193,Apple Inc.,Technology,Consumer Electronics,1
+MSFT,789019,Microsoft Corp.,Technology,Software - Infrastructure,1
+NVDA,1045810,NVIDIA Corp.,Technology,Semiconductors,1
+AMZN,1018724,Amazon.com Inc.,Consumer Discretionary,Broadline Retail,1
+META,1326801,Meta Platforms Inc.,Technology,Internet Content & Information,1
+GOOGL,1652044,Alphabet Inc.,Technology,Internet Content & Information,1
+TSLA,1318605,Tesla Inc.,Consumer Discretionary,Auto Manufacturers,1
+JPM,19617,JPMorgan Chase & Co.,Financials,Banks - Diversified,1
+V,1403161,Visa Inc.,Financials,Credit Services,1
+UNH,72971,UnitedHealth Group Inc.,Healthcare,Healthcare Plans,1
+JNJ,200406,Johnson & Johnson,Healthcare,Drug Manufacturers - General,1
+XOM,34088,Exxon Mobil Corp.,Energy,Oil & Gas Integrated,1
+WMT,104169,Walmart Inc.,Consumer Staples,Discount Stores,1
+HD,354950,Home Depot Inc.,Consumer Discretionary,Home Improvement Retail,1
+MA,1141391,Mastercard Inc.,Financials,Credit Services,1
+PG,80424,Procter & Gamble Co.,Consumer Staples,Household & Personal Products,1
+CVX,93410,Chevron Corp.,Energy,Oil & Gas Integrated,1
+LLY,59478,Eli Lilly and Co.,Healthcare,Drug Manufacturers - General,1
+MRK,310158,Merck & Co. Inc.,Healthcare,Drug Manufacturers - General,1
+ABBV,1551152,AbbVie Inc.,Healthcare,Drug Manufacturers - General,1

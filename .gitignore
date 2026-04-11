@@ -1,0 +1,25 @@
+# Raw and processed pipeline data — never commit
+# /data/ is anchored to repo root (does NOT affect app/data/)
+/data/
+
+# config/settings.yml contains personal info (email) — use settings.example.yml instead
+config/settings.yml
+
+# Environment / secrets
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,19 @@
+# Stock Selection Dashboard — Python dependencies
+# Install with: pip install -r requirements.txt
+
+# ── Core data ────────────────────────────────────────────────────────────────
+pandas>=2.0.0          # DataFrames, CSV I/O, time-series manipulation
+numpy>=1.24.0          # Numeric operations, percentile ranking
+
+# ── Storage ──────────────────────────────────────────────────────────────────
+pyarrow>=14.0.0        # Parquet read/write (optional; used if Parquet I/O is added)
+
+# ── HTTP ─────────────────────────────────────────────────────────────────────
+requests>=2.31.0       # Alpha Vantage + SEC EDGAR API calls
+
+# ── Config ───────────────────────────────────────────────────────────────────
+pyyaml>=6.0            # config/settings.yml parsing
+
+# ── Dev / testing ────────────────────────────────────────────────────────────
+pytest>=7.4.0
+pytest-mock>=3.11.0
