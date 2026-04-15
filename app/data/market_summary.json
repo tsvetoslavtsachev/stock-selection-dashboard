@@ -1,13 +1,13 @@
 {
   "universe_size": 503,
   "top_symbol": "APA",
-  "top_score": 0.7943,
+  "top_score": 0.795,
   "top_sector": "Energy",
   "bottom_symbol": "AXON",
-  "bottom_score": 0.2092,
-  "median_composite": 0.5,
-  "avg_composite": 0.4983,
-  "avg_pe": 24.9647,
+  "bottom_score": 0.2106,
+  "median_composite": 0.4995,
+  "avg_composite": 0.4984,
+  "avg_pe": 25.1265,
   "avg_roe": 0.1546,
   "sector_counts": {
     "Industrials": 79,
@@ -22,5 +22,5 @@
     "Communication Services": 23,
     "Energy": 22
   },
-  "as_of": "2026-04-14T23:08:52Z"
+  "as_of": "2026-04-15T23:07:00Z"
 }
