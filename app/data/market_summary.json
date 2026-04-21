@@ -1,13 +1,13 @@
 {
   "universe_size": 503,
-  "top_symbol": "APA",
-  "top_score": 0.7946,
-  "top_sector": "Energy",
+  "top_symbol": "CF",
+  "top_score": 0.7468,
+  "top_sector": "Materials",
   "bottom_symbol": "AXON",
-  "bottom_score": 0.2079,
-  "median_composite": 0.4999,
-  "avg_composite": 0.4986,
-  "avg_pe": 25.4669,
+  "bottom_score": 0.2084,
+  "median_composite": 0.4998,
+  "avg_composite": 0.4985,
+  "avg_pe": 25.4333,
   "avg_roe": 0.1546,
   "sector_counts": {
     "Industrials": 79,
@@ -22,5 +22,5 @@
     "Communication Services": 23,
     "Energy": 22
   },
-  "as_of": "2026-04-20T23:10:22Z"
+  "as_of": "2026-04-21T23:03:51Z"
 }
