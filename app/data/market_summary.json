@@ -1,13 +1,13 @@
 {
   "universe_size": 503,
   "top_symbol": "APA",
-  "top_score": 0.7924,
+  "top_score": 0.7896,
   "top_sector": "Energy",
   "bottom_symbol": "AXON",
-  "bottom_score": 0.2208,
-  "median_composite": 0.5047,
-  "avg_composite": 0.4985,
-  "avg_pe": 24.5832,
+  "bottom_score": 0.2201,
+  "median_composite": 0.5053,
+  "avg_composite": 0.4987,
+  "avg_pe": 24.7673,
   "avg_roe": 0.1591,
   "sector_counts": {
     "Industrials": 79,
@@ -16,11 +16,11 @@
     "Health Care": 58,
     "Consumer Discretionary": 48,
     "Consumer Staples": 36,
-    "Utilities": 31,
     "Real Estate": 31,
+    "Utilities": 31,
     "Materials": 26,
     "Communication Services": 23,
     "Energy": 22
   },
-  "as_of": "2026-04-29T23:16:52Z"
+  "as_of": "2026-04-30T23:16:17Z"
 }
