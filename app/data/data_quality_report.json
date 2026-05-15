@@ -1,0 +1,169 @@
+{
+  "total_rows": 503,
+  "flagged_rows": 113,
+  "low_quality_rows": 3,
+  "avg_quality_score": 0.9701,
+  "min_quality_score": 0.4706,
+  "flag_counts": {
+    "debt_equity_missing": 52,
+    "roic_missing": 48,
+    "pb_ratio_outlier": 35,
+    "roe_missing": 34,
+    "ev_ebitda_missing": 33,
+    "pe_ratio_outlier": 10,
+    "roe_outlier": 8,
+    "beta_missing": 6,
+    "debt_equity_outlier": 6,
+    "ev_ebit_outlier": 5,
+    "ev_ebitda_outlier": 5,
+    "fcf_margin_ttm_missing": 3,
+    "oper_margin_ttm_missing": 3,
+    "fcf_margin_ttm_outlier": 2,
+    "pb_ratio_missing": 2,
+    "pe_ratio_missing": 2,
+    "ret_52w_outlier": 2
+  },
+  "missing_counts": {
+    "debt_equity_missing": 52,
+    "roic_missing": 48,
+    "roe_missing": 34,
+    "ev_ebitda_missing": 33,
+    "beta_missing": 6,
+    "fcf_margin_ttm_missing": 3,
+    "oper_margin_ttm_missing": 3,
+    "pb_ratio_missing": 2,
+    "pe_ratio_missing": 2
+  },
+  "outlier_counts": {
+    "pb_ratio_outlier": 35,
+    "pe_ratio_outlier": 10,
+    "roe_outlier": 8,
+    "debt_equity_outlier": 6,
+    "ev_ebit_outlier": 5,
+    "ev_ebitda_outlier": 5,
+    "fcf_margin_ttm_outlier": 2,
+    "ret_52w_outlier": 2
+  },
+  "worst_rows": [
+    {
+      "ticker": "BF.B",
+      "name": "Brown–Forman",
+      "sector": "Consumer Staples",
+      "composite_score": 0.4607,
+      "data_quality_score": 0.4706,
+      "data_quality_flags": "pe_ratio_missing|pb_ratio_missing|ev_ebitda_missing|roe_missing|roic_missing|oper_margin_ttm_missing|fcf_margin_ttm_missing|debt_equity_missing|beta_missing"
+    },
+    {
+      "ticker": "BRK.B",
+      "name": "Berkshire Hathaway",
+      "sector": "Financials",
+      "composite_score": 0.4607,
+      "data_quality_score": 0.4706,
+      "data_quality_flags": "pe_ratio_missing|pb_ratio_missing|ev_ebitda_missing|roe_missing|roic_missing|oper_margin_ttm_missing|fcf_margin_ttm_missing|debt_equity_missing|beta_missing"
+    },
+    {
+      "ticker": "FISV",
+      "name": "Fiserv",
+      "sector": "Financials",
+      "composite_score": 0.3822,
+      "data_quality_score": 0.6471,
+      "data_quality_flags": "ev_ebitda_missing|roe_missing|oper_margin_ttm_missing|fcf_margin_ttm_missing|debt_equity_missing|beta_missing"
+    },
+    {
+      "ticker": "VRSN",
+      "name": "Verisign",
+      "sector": "Information Technology",
+      "composite_score": 0.6838,
+      "data_quality_score": 0.7647,
+      "data_quality_flags": "pb_ratio_outlier|roe_missing|roic_missing|debt_equity_missing"
+    },
+    {
+      "ticker": "ABBV",
+      "name": "AbbVie",
+      "sector": "Health Care",
+      "composite_score": 0.5509,
+      "data_quality_score": 0.8235,
+      "data_quality_flags": "pb_ratio_outlier|roe_missing|debt_equity_missing"
+    },
+    {
+      "ticker": "AZO",
+      "name": "AutoZone",
+      "sector": "Consumer Discretionary",
+      "composite_score": 0.4267,
+      "data_quality_score": 0.8235,
+      "data_quality_flags": "pb_ratio_outlier|roe_missing|debt_equity_missing"
+    },
+    {
+      "ticker": "BAC",
+      "name": "Bank of America",
+      "sector": "Financials",
+      "composite_score": 0.6301,
+      "data_quality_score": 0.8235,
+      "data_quality_flags": "ev_ebitda_missing|roic_missing|debt_equity_missing"
+    },
+    {
+      "ticker": "BK",
+      "name": "BNY Mellon",
+      "sector": "Financials",
+      "composite_score": 0.6799,
+      "data_quality_score": 0.8235,
+      "data_quality_flags": "ev_ebitda_missing|roic_missing|debt_equity_missing"
+    },
+    {
+      "ticker": "BKNG",
+      "name": "Booking Holdings",
+      "sector": "Consumer Discretionary",
+      "composite_score": 0.5053,
+      "data_quality_score": 0.8235,
+      "data_quality_flags": "pb_ratio_outlier|roe_missing|debt_equity_missing"
+    },
+    {
+      "ticker": "C",
+      "name": "Citigroup",
+      "sector": "Financials",
+      "composite_score": 0.6097,
+      "data_quality_score": 0.8235,
+      "data_quality_flags": "ev_ebitda_missing|roic_missing|debt_equity_missing"
+    },
+    {
+      "ticker": "CAH",
+      "name": "Cardinal Health",
+      "sector": "Health Care",
+      "composite_score": 0.4208,
+      "data_quality_score": 0.8235,
+      "data_quality_flags": "pb_ratio_outlier|roe_missing|debt_equity_missing"
+    },
+    {
+      "ticker": "CCI",
+      "name": "Crown Castle",
+      "sector": "Real Estate",
+      "composite_score": 0.4734,
+      "data_quality_score": 0.8235,
+      "data_quality_flags": "pb_ratio_outlier|roe_missing|debt_equity_missing"
+    },
+    {
+      "ticker": "CFG",
+      "name": "Citizens Financial Group",
+      "sector": "Financials",
+      "composite_score": 0.6748,
+      "data_quality_score": 0.8235,
+      "data_quality_flags": "ev_ebitda_missing|roic_missing|debt_equity_missing"
+    },
+    {
+      "ticker": "CL",
+      "name": "Colgate-Palmolive",
+      "sector": "Consumer Staples",
+      "composite_score": 0.57,
+      "data_quality_score": 0.8235,
+      "data_quality_flags": "pb_ratio_outlier|roe_outlier|debt_equity_outlier"
+    },
+    {
+      "ticker": "CLX",
+      "name": "Clorox",
+      "sector": "Consumer Staples",
+      "composite_score": 0.4499,
+      "data_quality_score": 0.8235,
+      "data_quality_flags": "pb_ratio_outlier|roe_outlier|debt_equity_outlier"
+    }
+  ]
+}

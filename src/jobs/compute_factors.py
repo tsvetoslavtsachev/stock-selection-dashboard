@@ -29,6 +29,7 @@ import pandas as pd
 from src.lib.io_utils import DATA_RAW, DATA_PROCESSED, read_universe
 from src.lib.yfinance_client import get_fundamentals
 from src.lib.scoring import build_scores
+from src.lib.validation import validate_factor_data
 
 logging.basicConfig(
     level=logging.INFO,
@@ -125,7 +126,8 @@ def run() -> pd.DataFrame:
         return pd.DataFrame()
 
     df = pd.DataFrame(rows)
-    scored = build_scores(df)
+    validated = validate_factor_data(df)
+    scored = build_scores(validated)
 
     DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
     scored.to_csv(_OUTPUT, index=False)

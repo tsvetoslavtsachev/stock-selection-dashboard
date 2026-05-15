@@ -40,13 +40,40 @@ def _safe_col(df: pd.DataFrame, col: str) -> pd.Series:
     return pd.Series(np.nan, index=df.index)
 
 
+def _weighted_available(factors: list[tuple[pd.Series, float]], neutral: float = 0.5) -> pd.Series:
+    """
+    Weighted average that re-scales over available factor values per row.
+
+    Without this, a single missing sub-factor (for example dividend yield for a
+    non-dividend payer) can turn the whole group score into NaN and then neutral
+    0.5, discarding all other valid signals for that stock.
+    """
+    if not factors:
+        return pd.Series(neutral)
+
+    index = factors[0][0].index
+    numerator = pd.Series(0.0, index=index)
+    denominator = pd.Series(0.0, index=index)
+
+    for series, weight in factors:
+        valid = series.notna()
+        numerator = numerator.add(series.fillna(0.0) * weight, fill_value=0.0)
+        denominator = denominator.add(valid.astype(float) * weight, fill_value=0.0)
+
+    return (numerator / denominator.replace(0.0, np.nan)).fillna(neutral)
+
+
 # ── Sub-factor builders ──────────────────────────────────────────────────────
 
 def _trend_score(df: pd.DataFrame) -> pd.Series:
     r13 = percentile_rank(_safe_col(df, "ret_13w"))
     r26 = percentile_rank(_safe_col(df, "ret_26w"))
     r52 = percentile_rank(_safe_col(df, "ret_52w"))
-    return (0.40 * r13 + 0.30 * r26 + 0.30 * r52).rename("trend_score")
+    return _weighted_available([
+        (r13, 0.40),
+        (r26, 0.30),
+        (r52, 0.30),
+    ]).rename("trend_score")
 
 
 def _quality_score(df: pd.DataFrame) -> pd.Series:
@@ -54,7 +81,12 @@ def _quality_score(df: pd.DataFrame) -> pd.Series:
     opm    = percentile_rank(_safe_col(df, "oper_margin_ttm"))
     fcfm   = percentile_rank(_safe_col(df, "fcf_margin_ttm"))
     roic   = percentile_rank(_safe_col(df, "roic"))
-    return (0.30 * roe + 0.25 * opm + 0.25 * fcfm + 0.20 * roic).rename("quality_score")
+    return _weighted_available([
+        (roe, 0.30),
+        (opm, 0.25),
+        (fcfm, 0.25),
+        (roic, 0.20),
+    ]).rename("quality_score")
 
 
 def _value_score(df: pd.DataFrame) -> pd.Series:
@@ -64,7 +96,12 @@ def _value_score(df: pd.DataFrame) -> pd.Series:
     pb     = 1.0 - percentile_rank(_safe_col(df, "pb_ratio"))
     # Higher dividend = better → normal rank
     div_y  = percentile_rank(_safe_col(df, "dividend_yield"))
-    return (0.35 * pe + 0.30 * ev_eb + 0.20 * pb + 0.15 * div_y).rename("value_score")
+    return _weighted_available([
+        (pe, 0.35),
+        (ev_eb, 0.30),
+        (pb, 0.20),
+        (div_y, 0.15),
+    ]).rename("value_score")
 
 
 def _risk_score(df: pd.DataFrame) -> pd.Series:
@@ -72,7 +109,11 @@ def _risk_score(df: pd.DataFrame) -> pd.Series:
     vol    = 1.0 - percentile_rank(_safe_col(df, "volatility_26w"))
     debt   = 1.0 - percentile_rank(_safe_col(df, "debt_equity"))
     beta   = 1.0 - percentile_rank(_safe_col(df, "beta"))
-    return (0.50 * vol + 0.30 * debt + 0.20 * beta).rename("risk_score")
+    return _weighted_available([
+        (vol, 0.50),
+        (debt, 0.30),
+        (beta, 0.20),
+    ]).rename("risk_score")
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
