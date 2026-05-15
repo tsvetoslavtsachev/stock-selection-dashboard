@@ -78,7 +78,8 @@ stock-selection-dashboard/
 │   └── data/                   # JSON snapshots — commit-ват се
 │       ├── ranked_stocks.json
 │       ├── market_summary.json
-│       └── leaders.json
+│       ├── leaders.json
+│       └── data_quality_report.json
 │
 ├── docs/
 │   └── architecture.md
@@ -97,10 +98,27 @@ stock-selection-dashboard/
 2. Python 3.11 се инсталира с кешрани зависимости
 3. `python -m src.jobs.run_pipeline` изпълнява 4-те стъпки последователно
 4. Ако дадена стъпка се провали, pipeline-ът продължава с предупреждение
-5. Обновените файлове в `app/data/` се commit-ват и push-ват
-6. GitHub Pages засича промяната и обновява сайта автоматично
+5. Factor inputs минават през data quality validation слой:
+   - екстремни/невалидни стойности се заменят с `null` преди scoring
+   - всеки ред получава `data_quality_score` и `data_quality_flags`
+6. Обновените файлове в `app/data/` се commit-ват и push-ват
+7. GitHub Pages засича промяната и обновява сайта автоматично
 
 Може да се стартира и ръчно от **Actions → Update Dashboard Data → Run workflow**.
+
+---
+
+## Data quality layer
+
+Pipeline-ът валидира входните factor данни преди scoring, за да намали влиянието на грешни feed стойности и счетоводни outlier-и:
+
+- невалидни диапазони като отрицателен P/E, екстремно EV/EBITDA, нереалистичен ROE или прекомерен debt/equity се маркират като `*_outlier`;
+- липсващи задължителни scoring фактори се маркират като `*_missing`;
+- невалидните scoring стойности се заменят с `null`, така че percentile ranking-ът да не ги третира като реален сигнал;
+- всяка акция получава `data_quality_score` в диапазон `[0, 1]` и списък `data_quality_flags`;
+- агрегираният отчет се публикува в `app/data/data_quality_report.json`.
+
+Frontend-ът показва Data Quality KPI, Data Q колона и flags в detail panel-а на всяка акция.
 
 ---
 

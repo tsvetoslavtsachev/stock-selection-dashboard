@@ -53,9 +53,27 @@
 
 ---
 
-### Слой 3 — Scoring (`src/lib/scoring.py`)
+### Слой 3 — Validation + Scoring (`src/lib/validation.py`, `src/lib/scoring.py`)
 
-Отговорност: Нормализира всички факторни входове и изчислява composite score.
+Отговорност: Валидира факторните входове, маркира липсващи/outlier стойности, нормализира валидните фактори и изчислява composite score.
+
+#### Data quality validation
+
+Преди scoring всеки фактор минава през sanity ranges:
+
+- negative или прекалено екстремен P/E, P/B, EV/EBITDA → `*_outlier`
+- нереалистични ROE/ROIC/margins/debt-equity/beta → `*_outlier`
+- липсващи задължителни scoring inputs → `*_missing`
+
+Невалидните scoring стойности се заменят с `NaN`, за да не участват в percentile ranking-а. Всеки ред получава:
+
+```text
+data_quality_score       # [0,1], по-високо = по-надеждни входни данни
+data_quality_flag_count  # брой flags
+data_quality_flags       # pipe-delimited flags в ranks.csv, array в JSON
+```
+
+`publish_site_data.py` публикува и агрегатен `data_quality_report.json`.
 
 #### Нормализация
 
@@ -98,8 +116,9 @@ Composite     = 0.35 × Trend
 | Файл | Съдържание |
 |---|---|
 | `ranked_stocks.json` | Пълен universe — масив от обекти, сортирани по composite_score desc |
-| `market_summary.json` | Агрегирани метрики: universe_size, top_symbol, median_composite, as_of |
+| `market_summary.json` | Агрегирани метрики: universe_size, top_symbol, median_composite, data quality KPI, as_of |
 | `leaders.json` | Top N (default 10) по composite_score |
+| `data_quality_report.json` | Агрегиран отчет за missing/outlier flags и най-проблемни редове |
 
 Всички `NaN` и `Inf` стойности се заменят с `null` преди сериализация.
 

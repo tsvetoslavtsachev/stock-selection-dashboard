@@ -306,6 +306,18 @@ thead tr.col-group th {
 thead tr.col-group th.cg-scores { color: var(--accent); border-bottom-color: var(--accent-dim); }
 thead tr.col-group th.cg-price  { color: var(--green); border-bottom-color: rgba(63,185,80,0.3); }
 thead tr.col-group th.cg-fundm  { color: var(--purple); border-bottom-color: rgba(188,140,255,0.3); }
+.quality-pill {
+  display: inline-block;
+  min-width: 42px;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+.quality-good { background: var(--green-dim); color: var(--green); }
+.quality-warn { background: rgba(210,153,34,0.15); color: var(--yellow); }
+.quality-bad  { background: var(--red-dim); color: var(--red); }
 
 tbody tr {
   cursor: pointer;
@@ -499,6 +511,34 @@ tbody td:nth-child(4) { text-align: left; color: var(--text-secondary); font-siz
   font-variant-numeric: tabular-nums;
 }
 
+.quality-flags {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+}
+.quality-flags-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.quality-flags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.quality-flag {
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: rgba(210,153,34,0.12);
+  color: var(--yellow);
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    LOADING OVERLAY
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -598,6 +638,7 @@ tbody td:nth-child(4) { text-align: left; color: var(--text-secondary); font-siz
         <option value="quality_score">Sort: Quality</option>
         <option value="value_score">Sort: Value</option>
         <option value="risk_score">Sort: Risk</option>
+        <option value="data_quality_score">Sort: Data Quality</option>
         <option value="pe_ratio">Sort: P/E</option>
         <option value="roe">Sort: ROE</option>
         <option value="market_cap">Sort: Market Cap</option>
@@ -613,7 +654,7 @@ tbody td:nth-child(4) { text-align: left; color: var(--text-secondary); font-siz
         <thead>
           <tr class="col-group">
             <th colspan="4"></th>
-            <th colspan="5" class="cg-scores">Scores</th>
+            <th colspan="6" class="cg-scores">Scores</th>
             <th colspan="4" class="cg-price">Price Momentum</th>
             <th colspan="7" class="cg-fundm">Fundamentals</th>
           </tr>
@@ -627,6 +668,7 @@ tbody td:nth-child(4) { text-align: left; color: var(--text-secondary); font-siz
             <th data-col="quality_score">Quality</th>
             <th data-col="value_score">Value</th>
             <th data-col="risk_score">Risk</th>
+            <th data-col="data_quality_score">Data Q</th>
             <th data-col="ret_13w">13W Ret</th>
             <th data-col="ret_26w">26W Ret</th>
             <th data-col="ret_52w">52W Ret</th>
@@ -717,6 +759,7 @@ function renderKPIs(s) {
     { label: 'Median Score', value: fmt(s.median_composite, 4), sub: 'Composite' },
     { label: 'Median P/E', value: fmt(s.avg_pe, 1), sub: 'Price / Earnings' },
     { label: 'Median ROE', value: pct(s.avg_roe), sub: 'Return on Equity' },
+    { label: 'Data Quality', value: pct(s.avg_data_quality_score), sub: (s.flagged_rows ?? 0) + ' flagged rows' },
   ];
   bar.innerHTML = kpis.map(k => `
     <div class="kpi-card">
@@ -794,6 +837,7 @@ function renderTable() {
       tdNum(s.quality_score, 4) +
       tdNum(s.value_score, 4) +
       tdNum(s.risk_score, 4) +
+      tdQuality(s.data_quality_score, s.data_quality_flag_count) +
       tdPct(s.ret_13w) +
       tdPct(s.ret_26w) +
       tdPct(s.ret_52w) +
@@ -845,6 +889,13 @@ function tdCap(v) {
   if (v >= 1e9) return `<td>${(v / 1e9).toFixed(1)}B</td>`;
   if (v >= 1e6) return `<td>${(v / 1e6).toFixed(0)}M</td>`;
   return `<td>${v.toLocaleString()}</td>`;
+}
+
+function tdQuality(v, flagCount) {
+  if (v == null) return '<td class="val-na">—</td>';
+  const cls = v >= 0.9 ? 'quality-good' : v >= 0.75 ? 'quality-warn' : 'quality-bad';
+  const title = flagCount ? `${flagCount} data quality flag(s)` : 'No data quality flags';
+  return `<td><span class="quality-pill ${cls}" title="${title}">${(v * 100).toFixed(0)}%</span></td>`;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -913,6 +964,10 @@ function showDetail(stock) {
         <div class="score-label">Risk (15%)</div>
         <div class="score-val">${fmt(stock.risk_score, 4)}</div>
       </div>
+      <div class="score-item">
+        <div class="score-label">Data Quality</div>
+        <div class="score-val">${pct(stock.data_quality_score)}</div>
+      </div>
     </div>
   `;
 
@@ -949,6 +1004,7 @@ function showDetail(stock) {
         </div>
       `).join('')}
     </div>
+    ${renderQualityFlags(stock)}
   `;
 
   // Highlight row
@@ -960,6 +1016,24 @@ function showDetail(stock) {
 /* ═══════════════════════════════════════════════════════════════════════════
    RADAR CHART
    ═══════════════════════════════════════════════════════════════════════════ */
+function renderQualityFlags(stock) {
+  const flags = Array.isArray(stock.data_quality_flags) ? stock.data_quality_flags : [];
+  if (!flags.length) {
+    return `
+      <div class="quality-flags">
+        <div class="quality-flags-title">Data Quality</div>
+        <div class="val-pos">No validation flags</div>
+      </div>`;
+  }
+  return `
+    <div class="quality-flags">
+      <div class="quality-flags-title">Data Quality Flags (${flags.length})</div>
+      <div class="quality-flags-list">
+        ${flags.map(f => `<span class="quality-flag">${f}</span>`).join('')}
+      </div>
+    </div>`;
+}
+
 function renderRadar(stock) {
   const ctx = document.getElementById('radarChart');
 

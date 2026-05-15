@@ -21,6 +21,7 @@ import math
 import pandas as pd
 
 from src.lib.io_utils import APP_DATA, DATA_PROCESSED, write_json
+from src.lib.validation import build_quality_report
 
 logging.basicConfig(
     level=logging.INFO,
@@ -52,8 +53,12 @@ _FUNDAMENTAL_COLS = [
     "fcf_margin_ttm", "market_cap", "beta",
 ]
 
+_QUALITY_COLS = [
+    "data_quality_score", "data_quality_flag_count", "data_quality_flags",
+]
 
-def _clean(v) -> float | int | str | None:
+
+def _clean(v) -> float | int | str | list | None:
     """Replace NaN/Inf with None, round floats."""
     if v is None:
         return None
@@ -73,9 +78,12 @@ def _row_to_dict(row: pd.Series, rank: int) -> dict:
     d: dict = {"rank": rank}
     for col in _META_COLS:
         d[col] = str(row.get(col, "")) if col in row.index else ""
-    for col in _SCORE_COLS + _PRICE_COLS + _FUNDAMENTAL_COLS:
+    for col in _SCORE_COLS + _PRICE_COLS + _FUNDAMENTAL_COLS + _QUALITY_COLS:
         raw = row.get(col, None)
-        d[col] = _clean(raw)
+        if col == "data_quality_flags" and isinstance(raw, str):
+            d[col] = [flag for flag in raw.split("|") if flag]
+        else:
+            d[col] = _clean(raw)
     return d
 
 
@@ -101,6 +109,14 @@ def run() -> None:
     logger.info("Wrote ranked_stocks.json (%d entries, %.0f KB)",
                 len(ranked), (APP_DATA / "ranked_stocks.json").stat().st_size / 1024)
 
+    # ── data_quality_report.json ──
+    quality_report = build_quality_report(df)
+    write_json(quality_report, APP_DATA / "data_quality_report.json")
+    logger.info(
+        "Wrote data_quality_report.json (flagged=%d, avg_quality=%s)",
+        quality_report["flagged_rows"], quality_report["avg_quality_score"]
+    )
+
     # ── market_summary.json ──
     top = df.iloc[0]
     bottom = df.iloc[-1]
@@ -119,6 +135,9 @@ def run() -> None:
         "avg_composite": _clean(df["composite_score"].mean()) if "composite_score" in df.columns else None,
         "avg_pe": _clean(df["pe_ratio"].median()) if "pe_ratio" in df.columns else None,
         "avg_roe": _clean(df["roe"].median()) if "roe" in df.columns else None,
+        "avg_data_quality_score": quality_report["avg_quality_score"],
+        "flagged_rows": quality_report["flagged_rows"],
+        "low_quality_rows": quality_report["low_quality_rows"],
         "sector_counts": sector_counts,
         "as_of": as_of,
     }
