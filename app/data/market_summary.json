@@ -1,13 +1,13 @@
 {
   "universe_size": 503,
   "top_symbol": "APA",
-  "top_score": 0.7828,
+  "top_score": 0.7723,
   "top_sector": "Energy",
   "bottom_symbol": "NRG",
-  "bottom_score": 0.1298,
-  "median_composite": 0.4967,
-  "avg_composite": 0.499,
-  "avg_pe": 25.0,
+  "bottom_score": 0.1349,
+  "median_composite": 0.4981,
+  "avg_composite": 0.4991,
+  "avg_pe": 24.898,
   "avg_roe": 0.1602,
   "sector_counts": {
     "Industrials": 79,
@@ -22,5 +22,5 @@
     "Communication Services": 23,
     "Energy": 22
   },
-  "as_of": "2026-05-29T23:46:40Z"
+  "as_of": "2026-06-01T23:50:21Z"
 }
