@@ -35,6 +35,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Run tests
+        run: python -m pytest tests/ -q
+
       - name: Prepare settings
         run: cp config/settings.example.yml config/settings.yml
 

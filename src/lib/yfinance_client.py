@@ -10,7 +10,8 @@ Alpha Vantage is kept as a fallback but is not used in the default pipeline.
 from __future__ import annotations
 
 import logging
-from typing import Any
+import time
+from typing import Any, Callable
 
 import yfinance as yf
 import pandas as pd
@@ -18,9 +19,38 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def get_price_history(symbol: str, period: str = "2y") -> pd.DataFrame | None:
+def _to_yahoo_symbol(symbol: str) -> str:
     """
-    Fetch weekly adjusted close prices for *symbol*.
+    Translate a universe ticker to the form Yahoo Finance expects.
+
+    Class-share tickers are written with a DOT in our universe (matching S&P /
+    SEC convention) — "BRK.B", "BF.B" — but Yahoo's API keys them with a DASH:
+    "BRK-B", "BF-B". Passing the dotted form to yfinance returns an empty
+    history, which would silently drop the stock to ``missing_prices``.
+
+    The translation is applied ONLY at the Yahoo API boundary (the
+    ``yf.Ticker`` calls below). The original dotted symbol stays the record
+    key, the price-CSV filename, and the join key back to universe.csv — so the
+    dash form never leaks into output or keys.
+    """
+    return symbol.replace(".", "-")
+
+
+def get_price_history(
+    symbol: str,
+    period: str = "2y",
+    max_retries: int = 3,
+    backoff_base: float = 2.0,
+    _sleep: Callable[[float], None] = time.sleep,
+) -> pd.DataFrame | None:
+    """
+    Fetch weekly adjusted close prices for *symbol*, with retry + backoff.
+
+    For an index constituent a missing price series is a *data error*, not a
+    legitimate state (a genuinely new listing would not yet be in the index), so
+    an empty/failed response is worth retrying before giving up — unlike
+    fundamentals, where a blank field (no dividend, no P/E) is normal and must
+    NOT be retried.
 
     Parameters
     ----------
@@ -28,24 +58,44 @@ def get_price_history(symbol: str, period: str = "2y") -> pd.DataFrame | None:
         Stock ticker (e.g. "AAPL").
     period : str
         yfinance period string: "1y", "2y", "5y", "max".
+    max_retries : int
+        Number of retries after the first attempt. With the default of 3 the
+        symbol is tried up to 4 times.
+    backoff_base : float
+        Base seconds for exponential backoff. Waits ``backoff_base * 2**n`` before
+        retry *n* → 2s, 4s, 8s with the defaults.
+    _sleep : Callable
+        Sleep function (injected for testing; defaults to ``time.sleep``).
 
     Returns
     -------
     pd.DataFrame with columns [Date, Close] sorted oldest→newest,
-    or None on failure.
+    or None if every attempt fails.
     """
-    try:
-        ticker = yf.Ticker(symbol)
-        hist = ticker.history(period=period, interval="1wk", auto_adjust=True)
-        if hist.empty:
-            logger.warning("[%s] No price history returned", symbol)
-            return None
-        hist = hist[["Close"]].copy()
-        hist.index.name = "Date"
-        return hist.sort_index()
-    except Exception as exc:
-        logger.error("[%s] Price fetch failed: %s", symbol, exc)
-        return None
+    yahoo_symbol = _to_yahoo_symbol(symbol)
+    attempts = max_retries + 1
+    for attempt in range(attempts):
+        try:
+            ticker = yf.Ticker(yahoo_symbol)
+            hist = ticker.history(period=period, interval="1wk", auto_adjust=True)
+            if not hist.empty:
+                hist = hist[["Close"]].copy()
+                hist.index.name = "Date"
+                return hist.sort_index()
+            logger.warning(
+                "[%s] Empty price history (attempt %d/%d)", symbol, attempt + 1, attempts
+            )
+        except Exception as exc:
+            logger.error(
+                "[%s] Price fetch failed (attempt %d/%d): %s",
+                symbol, attempt + 1, attempts, exc,
+            )
+
+        if attempt < max_retries:
+            _sleep(backoff_base * (2 ** attempt))
+
+    logger.error("[%s] No price history after %d attempts — giving up", symbol, attempts)
+    return None
 
 
 def get_fundamentals(symbol: str) -> dict[str, Any]:
@@ -81,7 +131,7 @@ def get_fundamentals(symbol: str) -> dict[str, Any]:
     }
 
     try:
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(_to_yahoo_symbol(symbol))
         info = ticker.info or {}
 
         result["pe_ratio"] = info.get("trailingPE") or info.get("forwardPE")
