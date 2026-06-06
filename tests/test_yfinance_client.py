@@ -104,3 +104,69 @@ def test_no_sleep_after_final_attempt(monkeypatch):
     assert result is None
     assert state["calls"] == 1
     assert sleeps == []
+
+
+# ─── Yahoo symbol normalisation (class shares: dot → dash) ───────────────────
+
+def _capture_ticker_symbols(monkeypatch, frame: pd.DataFrame) -> list[str]:
+    """
+    Patch yf.Ticker to record exactly what symbol string each construction
+    receives, while serving *frame* for .history()/.info. Returns the list the
+    test asserts against.
+    """
+    seen: list[str] = []
+
+    def fake_ticker(symbol):
+        seen.append(symbol)
+
+        class _T:
+            def history(self, **_kwargs):
+                return frame
+
+            @property
+            def info(self):
+                return {}
+
+        return _T()
+
+    monkeypatch.setattr(yfinance_client.yf, "Ticker", fake_ticker)
+    return seen
+
+
+def test_to_yahoo_symbol_translates_dot_to_dash():
+    """The pure helper: class-share dots become dashes; nothing else changes."""
+    assert yfinance_client._to_yahoo_symbol("BRK.B") == "BRK-B"
+    assert yfinance_client._to_yahoo_symbol("BF.B") == "BF-B"
+
+
+def test_to_yahoo_symbol_leaves_plain_tickers_untouched():
+    """A normal ticker has no dot, so it passes through verbatim."""
+    assert yfinance_client._to_yahoo_symbol("AAPL") == "AAPL"
+
+
+def test_price_fetch_sends_dash_form_to_yahoo(monkeypatch):
+    """get_price_history('BRK.B') must hand yfinance the dash form 'BRK-B'."""
+    seen = _capture_ticker_symbols(monkeypatch, _good_frame())
+
+    result = yfinance_client.get_price_history("BRK.B", _sleep=lambda _s: None)
+
+    assert result is not None                 # data comes back, not missing_prices
+    assert seen == ["BRK-B"]                   # Yahoo only ever saw the dash form
+
+
+def test_fundamentals_sends_dash_form_to_yahoo(monkeypatch):
+    """get_fundamentals('BF.B') must hand yfinance the dash form 'BF-B'."""
+    seen = _capture_ticker_symbols(monkeypatch, _good_frame())
+
+    yfinance_client.get_fundamentals("BF.B")
+
+    assert seen == ["BF-B"]
+
+
+def test_plain_ticker_reaches_yahoo_unchanged(monkeypatch):
+    """A control with no dot (AAPL) is passed through without modification."""
+    seen = _capture_ticker_symbols(monkeypatch, _good_frame())
+
+    yfinance_client.get_price_history("AAPL", _sleep=lambda _s: None)
+
+    assert seen == ["AAPL"]

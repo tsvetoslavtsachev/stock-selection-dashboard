@@ -19,6 +19,23 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+def _to_yahoo_symbol(symbol: str) -> str:
+    """
+    Translate a universe ticker to the form Yahoo Finance expects.
+
+    Class-share tickers are written with a DOT in our universe (matching S&P /
+    SEC convention) — "BRK.B", "BF.B" — but Yahoo's API keys them with a DASH:
+    "BRK-B", "BF-B". Passing the dotted form to yfinance returns an empty
+    history, which would silently drop the stock to ``missing_prices``.
+
+    The translation is applied ONLY at the Yahoo API boundary (the
+    ``yf.Ticker`` calls below). The original dotted symbol stays the record
+    key, the price-CSV filename, and the join key back to universe.csv — so the
+    dash form never leaks into output or keys.
+    """
+    return symbol.replace(".", "-")
+
+
 def get_price_history(
     symbol: str,
     period: str = "2y",
@@ -55,10 +72,11 @@ def get_price_history(
     pd.DataFrame with columns [Date, Close] sorted oldest→newest,
     or None if every attempt fails.
     """
+    yahoo_symbol = _to_yahoo_symbol(symbol)
     attempts = max_retries + 1
     for attempt in range(attempts):
         try:
-            ticker = yf.Ticker(symbol)
+            ticker = yf.Ticker(yahoo_symbol)
             hist = ticker.history(period=period, interval="1wk", auto_adjust=True)
             if not hist.empty:
                 hist = hist[["Close"]].copy()
@@ -113,7 +131,7 @@ def get_fundamentals(symbol: str) -> dict[str, Any]:
     }
 
     try:
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(_to_yahoo_symbol(symbol))
         info = ticker.info or {}
 
         result["pe_ratio"] = info.get("trailingPE") or info.get("forwardPE")
