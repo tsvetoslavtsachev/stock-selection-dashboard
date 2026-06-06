@@ -33,7 +33,7 @@ _RANKS_CSV = DATA_PROCESSED / "ranks.csv"
 _N_LEADERS = 10
 
 # All columns to include in JSON output
-_META_COLS = ["ticker", "name", "sector"]
+_META_COLS = ["ticker", "name", "sector", "data_quality"]
 
 _SCORE_COLS = [
     "composite_score", "trend_score", "quality_score",
@@ -108,8 +108,19 @@ def run() -> None:
     # Sector breakdown
     sector_counts = df["sector"].value_counts().to_dict() if "sector" in df.columns else {}
 
+    # Data-quality monitoring: how many index members are missing/partial prices.
+    if "data_quality" in df.columns:
+        dq = df["data_quality"].value_counts().to_dict()
+        missing_price_count = int(dq.get("missing_prices", 0))
+        partial_price_count = int(dq.get("partial_prices", 0))
+    else:
+        missing_price_count = 0
+        partial_price_count = 0
+
     summary = {
         "universe_size": len(df),
+        "missing_price_count": missing_price_count,
+        "partial_price_count": partial_price_count,
         "top_symbol": str(top.get("ticker", "")),
         "top_score": _clean(top.get("composite_score")),
         "top_sector": str(top.get("sector", "")),

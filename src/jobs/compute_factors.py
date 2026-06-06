@@ -58,15 +58,23 @@ def _load_prices(symbol: str) -> pd.Series | None:
 
 
 def _price_features(series: pd.Series) -> dict[str, float]:
+    """
+    Compute price-based features. A feature that cannot be computed from the
+    available history returns NaN (NOT 0.0) — a forced 0.0 return looks like a
+    flat year, and a forced 0.0 volatility looks like the *calmest* stock in the
+    universe, both of which silently distort the ranking. NaN instead flows into
+    the NaN-aware scoring (the factor reweights onto the components it can
+    compute, or falls back to neutral) and is flagged as a data-quality issue.
+    """
     n = len(series)
 
     def safe_ret(weeks: int) -> float:
         if n < weeks + 1:
-            return 0.0
+            return float("nan")
         past = series.iloc[-(weeks + 1)]
         current = series.iloc[-1]
         if past == 0 or np.isnan(past):
-            return 0.0
+            return float("nan")
         return (current / past) - 1.0
 
     ret_13 = safe_ret(13)
@@ -77,7 +85,7 @@ def _price_features(series: pd.Series) -> dict[str, float]:
         weekly_rets = np.log(series.iloc[-26:].values / series.iloc[-27:-1].values)
         vol = float(np.nanstd(weekly_rets) * np.sqrt(52))
     else:
-        vol = 0.0
+        vol = float("nan")
 
     return {
         "ret_13w": round(ret_13, 6),
@@ -107,12 +115,20 @@ def run() -> pd.DataFrame:
             "cik":    row.get("cik", ""),
         }
 
-        # Price features
+        # Price features. Missing prices = NaN (never 0.0) + a data_quality flag,
+        # so a data outage cannot masquerade as a flat, ultra-low-volatility stock.
         prices = _load_prices(symbol)
         if prices is not None and len(prices) > 1:
-            record.update(_price_features(prices))
+            feats = _price_features(prices)
+            record.update(feats)
+            n_missing = sum(1 for v in feats.values() if pd.isna(v))
+            record["data_quality"] = "ok" if n_missing == 0 else "partial_prices"
         else:
-            record.update({"ret_13w": 0.0, "ret_26w": 0.0, "ret_52w": 0.0, "volatility_26w": 0.0})
+            record.update(
+                {"ret_13w": np.nan, "ret_26w": np.nan, "ret_52w": np.nan, "volatility_26w": np.nan}
+            )
+            record["data_quality"] = "missing_prices"
+            logger.warning("[%s] No usable price history — flagged missing_prices", symbol)
 
         # Fundamentals from yfinance
         fundamentals = get_fundamentals(symbol)
