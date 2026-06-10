@@ -3,13 +3,13 @@
   "missing_price_count": 0,
   "partial_price_count": 1,
   "top_symbol": "MO",
-  "top_score": 0.7999,
+  "top_score": 0.8131,
   "top_sector": "Consumer Staples",
   "bottom_symbol": "AXON",
-  "bottom_score": 0.1242,
-  "median_composite": 0.5018,
+  "bottom_score": 0.1235,
+  "median_composite": 0.5017,
   "avg_composite": 0.5024,
-  "avg_pe": 24.9511,
+  "avg_pe": 24.6319,
   "avg_roe": 0.1592,
   "sector_counts": {
     "Industrials": 79,
@@ -24,5 +24,5 @@
     "Communication Services": 23,
     "Energy": 22
   },
-  "as_of": "2026-06-09T23:47:39Z"
+  "as_of": "2026-06-10T23:54:09Z"
 }
