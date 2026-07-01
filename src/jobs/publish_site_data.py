@@ -64,7 +64,7 @@ _SCORE_COLS = [
 ]
 
 _PRICE_COLS = [
-    "ret_13w", "ret_26w", "ret_52w", "volatility_26w",
+    "ret_12_1", "ret_13w", "volatility_26w",
 ]
 
 _FUNDAMENTAL_COLS = [

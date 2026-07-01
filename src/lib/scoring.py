@@ -3,7 +3,7 @@ Factor scoring engine — S&P 500 edition.
 
 Factor weights
 --------------
-Trend score   = 40% rank(ret_13w) + 30% rank(ret_26w) + 30% rank(ret_52w)
+Trend score   = 70% rank(ret_12_1) + 30% rank(ret_13w)   # 12-1 skip-month + 13w
 Quality score = 30% rank(roe) + 25% rank(oper_margin_ttm) + 25% rank(fcf_margin_ttm) + 20% rank(roic)
 Value score   = 35% inv_rank(pe_ratio) + 30% inv_rank(ev_ebitda) + 20% inv_rank(pb_ratio) + 15% rank(dividend_yield)
 Risk score    = 50% inv_rank(volatility_26w) + 30% inv_rank(debt_equity) + 20% inv_rank(beta)
@@ -85,10 +85,12 @@ def _combine_ranks(components: list[tuple[float, pd.Series]], name: str) -> pd.S
 # ── Sub-factor builders ──────────────────────────────────────────────────────
 
 def _trend_score(df: pd.DataFrame) -> pd.Series:
-    r13 = percentile_rank(_safe_col(df, "ret_13w"))
-    r26 = percentile_rank(_safe_col(df, "ret_26w"))
-    r52 = percentile_rank(_safe_col(df, "ret_52w"))
-    return _combine_ranks([(0.40, r13), (0.30, r26), (0.30, r52)], "trend_score")
+    # 12-1 skip-month momentum is the primary trend signal; a 13-week return is
+    # retained for responsiveness. The old 26w/52w point-to-point inputs were
+    # collinear with these and are dropped.
+    r_mom = percentile_rank(_safe_col(df, "ret_12_1"))
+    r13   = percentile_rank(_safe_col(df, "ret_13w"))
+    return _combine_ranks([(0.70, r_mom), (0.30, r13)], "trend_score")
 
 
 def _quality_score(df: pd.DataFrame) -> pd.Series:

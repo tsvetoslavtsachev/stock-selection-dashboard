@@ -18,28 +18,48 @@ from src.jobs.compute_factors import _price_features
 from src.lib.scoring import build_scores
 
 
-def _weekly_series(n: int) -> pd.Series:
-    """A clean upward-drifting weekly close series of length n."""
-    idx = pd.date_range("2022-01-01", periods=n, freq="W")
-    return pd.Series(np.linspace(100.0, 100.0 + n, n), index=idx)
+def _daily_series(n: int) -> pd.Series:
+    """A clean geometric daily close series of length n (business days) — feeds
+    _price_features, which resamples to W-FRI internally for the weekly features
+    and reads the daily series directly for 12-1 momentum."""
+    idx = pd.bdate_range("2022-01-03", periods=n)
+    return pd.Series(100.0 * (1.001 ** np.arange(n)), index=idx)
 
 
 def test_price_features_full_history_are_real_numbers():
-    feats = _price_features(_weekly_series(120))
+    feats = _price_features(_daily_series(400))  # > 253 daily → every feature real
     assert all(not pd.isna(v) for v in feats.values())
     assert feats["volatility_26w"] >= 0.0
+    assert set(feats) == {"ret_12_1", "ret_13w", "volatility_26w"}
 
 
 def test_price_features_short_history_returns_nan_not_zero():
     """
-    13 weeks: ret_13w is computable, but ret_26w/ret_52w and volatility_26w
-    cannot be — they must be NaN, NOT a misleading 0.0.
+    ~16 weeks of daily bars: ret_13w is computable, but 12-1 momentum (needs ~253
+    daily bars) and 26-week volatility cannot be — NaN, NOT a misleading 0.0.
     """
-    feats = _price_features(_weekly_series(14))  # 14 points → 13-week window only
+    feats = _price_features(_daily_series(80))
     assert not pd.isna(feats["ret_13w"])
-    assert pd.isna(feats["ret_26w"])
-    assert pd.isna(feats["ret_52w"])
+    assert pd.isna(feats["ret_12_1"])
     assert pd.isna(feats["volatility_26w"])
+
+
+def test_ret_12_1_matches_by_hand_skipping_last_month():
+    """12-1 momentum = price[t-21] / price[t-252] - 1 on the daily series."""
+    s = _daily_series(300)
+    expected = round(s.iloc[-22] / s.iloc[-253] - 1.0, 6)
+    assert np.isclose(_price_features(s)["ret_12_1"], expected)
+
+
+def test_ret_12_1_ignores_the_most_recent_month():
+    """Skip-month: a violent move in the last 21 bars must NOT change 12-1
+    momentum — that window is deliberately excluded (no short-term reversal, no
+    lookahead into the skipped tail)."""
+    s = _daily_series(300)
+    base = _price_features(s)["ret_12_1"]
+    s2 = s.copy()
+    s2.iloc[-21:] *= 1.5
+    assert np.isclose(base, _price_features(s2)["ret_12_1"])
 
 
 def _universe_with_missing_price_stock() -> pd.DataFrame:

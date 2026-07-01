@@ -627,9 +627,8 @@ tbody td:nth-child(4) { text-align: left; color: var(--text-secondary); font-siz
             <th data-col="quality_score">Quality</th>
             <th data-col="value_score">Value</th>
             <th data-col="risk_score">Risk</th>
+            <th data-col="ret_12_1">12-1 Mom</th>
             <th data-col="ret_13w">13W Ret</th>
-            <th data-col="ret_26w">26W Ret</th>
-            <th data-col="ret_52w">52W Ret</th>
             <th data-col="volatility_26w">Vol 26W</th>
             <th data-col="pe_ratio">P/E</th>
             <th data-col="pb_ratio">P/B</th>
@@ -814,9 +813,8 @@ function renderTable() {
       tdNum(s.quality_score, 4) +
       tdNum(s.value_score, 4) +
       tdNum(s.risk_score, 4) +
+      tdPct(s.ret_12_1) +
       tdPct(s.ret_13w) +
-      tdPct(s.ret_26w) +
-      tdPct(s.ret_52w) +
       tdPct(s.volatility_26w, false) +
       tdNum(s.pe_ratio, 1) +
       tdNum(s.pb_ratio, 2) +
@@ -957,6 +955,8 @@ function showDetail(stock) {
     { label: 'Gross Margin', val: pct(stock.gross_margin_ttm) },
     { label: 'FCF Margin', val: pct(stock.fcf_margin_ttm) },
     { label: 'Market Cap', val: fmtCap(stock.market_cap) },
+    { label: '12-1 Mom', val: pct(stock.ret_12_1) },
+    { label: '13W Ret', val: pct(stock.ret_13w) },
     { label: 'Volatility', val: pct(stock.volatility_26w) },
   ];
   fd.innerHTML = `
