@@ -59,20 +59,27 @@ def _load_prices(symbol: str) -> pd.Series | None:
 
 def _price_features(series: pd.Series) -> dict[str, float]:
     """
-    Compute price-based features. A feature that cannot be computed from the
-    available history returns NaN (NOT 0.0) — a forced 0.0 return looks like a
-    flat year, and a forced 0.0 volatility looks like the *calmest* stock in the
-    universe, both of which silently distort the ranking. NaN instead flows into
-    the NaN-aware scoring (the factor reweights onto the components it can
-    compute, or falls back to neutral) and is flagged as a data-quality issue.
+    Compute price-based features from a DAILY total-return close series (INIT-22
+    P9 — sourced base-first from the price-archive). The series is resampled to
+    weekly (W-FRI) here so point-to-point returns and volatility follow the house
+    weekly convention (52 W-FRI returns, matching the beta convention used across
+    the dashboards); Etap B's 12-1 skip-month momentum reads the daily series
+    directly instead.
+
+    A feature that cannot be computed from the available history returns NaN (NOT
+    0.0) — a forced 0.0 return looks like a flat year, and a forced 0.0 volatility
+    looks like the *calmest* stock in the universe, both of which silently distort
+    the ranking. NaN instead flows into the NaN-aware scoring and is flagged as a
+    data-quality issue.
     """
-    n = len(series)
+    wk = series.resample("W-FRI").last().dropna()
+    n = len(wk)
 
     def safe_ret(weeks: int) -> float:
         if n < weeks + 1:
             return float("nan")
-        past = series.iloc[-(weeks + 1)]
-        current = series.iloc[-1]
+        past = wk.iloc[-(weeks + 1)]
+        current = wk.iloc[-1]
         if past == 0 or np.isnan(past):
             return float("nan")
         return (current / past) - 1.0
@@ -82,7 +89,7 @@ def _price_features(series: pd.Series) -> dict[str, float]:
     ret_52 = safe_ret(52)
 
     if n >= 27:
-        weekly_rets = np.log(series.iloc[-26:].values / series.iloc[-27:-1].values)
+        weekly_rets = np.log(wk.iloc[-26:].values / wk.iloc[-27:-1].values)
         vol = float(np.nanstd(weekly_rets) * np.sqrt(52))
     else:
         vol = float("nan")
