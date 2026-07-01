@@ -121,12 +121,17 @@ def run() -> pd.DataFrame:
         if prices is not None and len(prices) > 1:
             feats = _price_features(prices)
             record.update(feats)
+            # Date of the newest price bar actually used — the real data-recency
+            # signal (publish stamps its own run time, which is always "fresh"
+            # even when the fetch silently returned nothing new).
+            record["price_asof"] = prices.index[-1].strftime("%Y-%m-%d")
             n_missing = sum(1 for v in feats.values() if pd.isna(v))
             record["data_quality"] = "ok" if n_missing == 0 else "partial_prices"
         else:
             record.update(
                 {"ret_13w": np.nan, "ret_26w": np.nan, "ret_52w": np.nan, "volatility_26w": np.nan}
             )
+            record["price_asof"] = None
             record["data_quality"] = "missing_prices"
             logger.warning("[%s] No usable price history — flagged missing_prices", symbol)
 

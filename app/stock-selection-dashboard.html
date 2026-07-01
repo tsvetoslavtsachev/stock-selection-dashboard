@@ -695,15 +695,35 @@ async function init() {
     applyFilters();
     bindEvents();
 
-    if (summary.as_of) {
-      document.getElementById('asOf').textContent = 'Updated: ' + new Date(summary.as_of).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    }
+    renderFreshness(summary);
   } catch (err) {
     console.error('Failed to load data:', err);
     document.querySelector('.loading-text').textContent = 'Failed to load data. Run the pipeline first.';
     return;
   }
   document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FRESHNESS — publish time + data recency (newest price bar), with a visible
+   STALE badge so a silently frozen pipeline cannot masquerade as fresh.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function renderFreshness(s) {
+  const el = document.getElementById('asOf');
+  if (!el) return;
+  let txt = '';
+  if (s.as_of) {
+    txt = 'Updated: ' + new Date(s.as_of).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+  if (s.data_asof) {
+    txt += (txt ? '  ·  ' : '') + 'Data: ' + s.data_asof;
+    if (s.data_fresh === false) {
+      const age = (s.data_age_days != null) ? ' (' + s.data_age_days + 'd old)' : '';
+      el.innerHTML = txt + ' <span style="background:#b91c1c;color:#fff;padding:1px 6px;border-radius:4px;font-weight:600;font-size:0.85em;">STALE' + age + '</span>';
+      return;
+    }
+  }
+  el.textContent = txt;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

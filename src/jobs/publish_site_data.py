@@ -32,6 +32,29 @@ logger = logging.getLogger("publish_site_data")
 _RANKS_CSV = DATA_PROCESSED / "ranks.csv"
 _N_LEADERS = 10
 
+# Newest price bar older than this (calendar days) → data flagged not-fresh.
+# Tolerates a normal weekend/holiday gap on daily bars; the UI surfaces both the
+# exact `data_asof` date and this boolean so silent staleness is visible.
+_STALE_AFTER_DAYS = 5
+
+
+def _data_recency(df: pd.DataFrame) -> tuple[str | None, int | None, bool]:
+    """
+    Newest price bar date across the universe → (data_asof, age_days, fresh).
+
+    Measures ACTUAL data recency — the last observation the ranking is built on —
+    NOT publish time. A scheduled job that runs but silently fetches nothing new
+    keeps producing a fresh publish timestamp while the underlying bars go stale;
+    this metric exposes that gap.
+    """
+    if "price_asof" not in df.columns:
+        return None, None, True
+    asof = pd.to_datetime(df["price_asof"], errors="coerce").max()
+    if pd.isna(asof):
+        return None, None, True
+    age = (datetime.datetime.utcnow().date() - asof.date()).days
+    return asof.strftime("%Y-%m-%d"), int(age), age <= _STALE_AFTER_DAYS
+
 # All columns to include in JSON output
 _META_COLS = ["ticker", "name", "sector", "data_quality"]
 
@@ -94,6 +117,7 @@ def run() -> None:
         df = df.sort_values("composite_score", ascending=False).reset_index(drop=True)
 
     as_of = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    data_asof, data_age_days, data_fresh = _data_recency(df)
 
     # ── ranked_stocks.json ──
     ranked = [_row_to_dict(row, rank=i + 1) for i, (_, row) in enumerate(df.iterrows())]
@@ -132,6 +156,9 @@ def run() -> None:
         "avg_roe": _clean(df["roe"].median()) if "roe" in df.columns else None,
         "sector_counts": sector_counts,
         "as_of": as_of,
+        "data_asof": data_asof,
+        "data_age_days": data_age_days,
+        "data_fresh": data_fresh,
     }
     write_json(summary, APP_DATA / "market_summary.json")
     logger.info("Wrote market_summary.json (top=%s)", summary["top_symbol"])
