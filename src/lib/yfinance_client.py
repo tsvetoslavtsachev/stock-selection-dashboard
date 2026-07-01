@@ -139,7 +139,12 @@ def get_fundamentals(symbol: str) -> dict[str, Any]:
         ticker = yf.Ticker(_to_yahoo_symbol(symbol))
         info = ticker.info or {}
 
-        result["pe_ratio"] = info.get("trailingPE") or info.get("forwardPE")
+        # Trailing P/E only — a SINGLE consistent earnings basis across the
+        # universe. Mixing trailing for some names and forward for others (the old
+        # `trailingPE or forwardPE`) compares two different definitions in one
+        # ranking. Negative-earnings names have no trailing P/E -> None -> the E/P
+        # yield is NaN and the value bucket reweights onto EV/EBITDA and P/B.
+        result["pe_ratio"] = info.get("trailingPE")
         result["pb_ratio"] = info.get("priceToBook")
         result["ev_ebitda"] = info.get("enterpriseToEbitda")
         result["ev_ebit"] = _safe_divide(

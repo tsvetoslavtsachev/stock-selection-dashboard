@@ -30,17 +30,21 @@ never a 0.5 that would beat real stocks. Low-coverage buckets are shrunk toward 
 in proportion to their coverage (a mean of fewer z's has inflated variance and
 would otherwise drift to the tails).
 
-Composite weights are applied in the publish/compose step; here every bucket is
-the sector-neutral blend of its sub-factor z's.
+Composite = weighted sum of the buckets after each is re-standardized to unit
+variance (so equal weight -> equal influence); the weights come from the committed
+``config/scoring.yml`` (equal-weight default, since M1 ships no backtest to justify
+anything else).
 """
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from statistics import NormalDist
 
 import numpy as np
 import pandas as pd
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +53,44 @@ _NORM = NormalDist(0.0, 1.0)
 _MIN_SECTOR_N = 10     # below this, a sector standardizes against the universe
 _MIN_COVERAGE = 0.50   # a bucket needs >= 50% of its weight present to score
 
-# Composite bucket weights (Etap D reads these from config; equal-weight default).
-TREND_W   = 0.25
-QUALITY_W = 0.25
-VALUE_W   = 0.25
-RISK_W    = 0.25
+# Committed weights live in config/scoring.yml (a PUBLIC dashboard's production
+# weights must be in git, not the gitignored settings.yml). Default = equal weight
+# at BOTH levels — the honest no-information prior absent a validated IC (M1 ships
+# no backtest). load_weights() falls back to this if the file is absent/malformed.
+_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "scoring.yml"
+
+_DEFAULT_WEIGHTS: dict = {
+    "composite": {"trend": 0.25, "quality": 0.25, "value": 0.25, "risk": 0.25},
+    "subfactors": {
+        "trend":   {"ret_12_1": 0.5, "ret_13w": 0.5},
+        "quality": {"roe": 0.25, "oper_margin_ttm": 0.25, "fcf_margin_ttm": 0.25, "roic": 0.25},
+        "value":   {"pe_ratio": 0.25, "ev_ebitda": 0.25, "pb_ratio": 0.25, "dividend_yield": 0.25},
+        "risk":    {"volatility_26w": 1 / 3, "debt_equity": 1 / 3, "beta": 1 / 3},
+    },
+}
+
+
+def load_weights(path: Path = _CONFIG_PATH) -> dict:
+    """Read committed scoring weights; fall back to the equal-weight default if the
+    file is missing or malformed (so a bare checkout still scores sensibly)."""
+    try:
+        data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+        if isinstance(data, dict) and "composite" in data and "subfactors" in data:
+            return data
+    except (OSError, yaml.YAMLError):
+        pass
+    return _DEFAULT_WEIGHTS
+
+
+def _restandardize(s: pd.Series) -> pd.Series:
+    """Re-standardize a bucket to unit variance so that equal composite weights
+    mean equal INFLUENCE — a bucket of more-correlated inputs is otherwise more
+    dispersed and silently dominates. A degenerate (zero-variance) bucket stays
+    neutral."""
+    sd = float(s.std(ddof=0))
+    if sd < 1e-9:
+        return s * 0.0
+    return (s - s.mean()) / sd
 
 
 def _safe_col(df: pd.DataFrame, col: str) -> pd.Series:
@@ -142,59 +179,62 @@ def _inv_yield(s: pd.Series) -> pd.Series:
     return 1.0 / s.where(s != 0)
 
 
-def _trend_score(df: pd.DataFrame) -> pd.Series:
+def _trend_score(df: pd.DataFrame, w: dict) -> pd.Series:
     return _combine_z([
-        (0.70, _signal(df, "ret_12_1", +1)),   # 12-1 skip-month momentum (primary)
-        (0.30, _signal(df, "ret_13w", +1)),    # 13-week return (responsiveness)
+        (w["ret_12_1"], _signal(df, "ret_12_1", +1)),   # 12-1 skip-month momentum
+        (w["ret_13w"],  _signal(df, "ret_13w", +1)),    # 13-week return (responsiveness)
     ], "trend_score")
 
 
-def _quality_score(df: pd.DataFrame) -> pd.Series:
+def _quality_score(df: pd.DataFrame, w: dict) -> pd.Series:
     return _combine_z([
-        (0.30, _signal(df, "roe", +1)),
-        (0.25, _signal(df, "oper_margin_ttm", +1)),
-        (0.25, _signal(df, "fcf_margin_ttm", +1)),
-        (0.20, _signal(df, "roic", +1)),
+        (w["roe"],             _signal(df, "roe", +1)),
+        (w["oper_margin_ttm"], _signal(df, "oper_margin_ttm", +1)),
+        (w["fcf_margin_ttm"],  _signal(df, "fcf_margin_ttm", +1)),
+        (w["roic"],            _signal(df, "roic", +1)),
     ], "quality_score")
 
 
-def _value_score(df: pd.DataFrame) -> pd.Series:
+def _value_score(df: pd.DataFrame, w: dict) -> pd.Series:
     # Yield-form: higher = cheaper = better; negatives sort to the bottom.
     return _combine_z([
-        (0.35, _signal(df, "pe_ratio", +1, transform=_inv_yield)),
-        (0.30, _signal(df, "ev_ebitda", +1, transform=_inv_yield)),
-        (0.20, _signal(df, "pb_ratio", +1, transform=_inv_yield)),
+        (w["pe_ratio"],  _signal(df, "pe_ratio", +1, transform=_inv_yield)),
+        (w["ev_ebitda"], _signal(df, "ev_ebitda", +1, transform=_inv_yield)),
+        (w["pb_ratio"],  _signal(df, "pb_ratio", +1, transform=_inv_yield)),
         # No dividend = zero yield (a real value), not missing data -> fill 0.
-        (0.15, _signal(df, "dividend_yield", +1, transform=lambda s: s.fillna(0.0))),
+        (w["dividend_yield"], _signal(df, "dividend_yield", +1, transform=lambda s: s.fillna(0.0))),
     ], "value_score")
 
 
-def _risk_score(df: pd.DataFrame) -> pd.Series:
+def _risk_score(df: pd.DataFrame, w: dict) -> pd.Series:
     # Lower vol / debt / beta = less risky = better -> direction -1.
     return _combine_z([
-        (0.50, _signal(df, "volatility_26w", -1)),
-        (0.30, _signal(df, "debt_equity", -1)),
-        (0.20, _signal(df, "beta", -1)),
+        (w["volatility_26w"], _signal(df, "volatility_26w", -1)),
+        (w["debt_equity"],    _signal(df, "debt_equity", -1)),
+        (w["beta"],           _signal(df, "beta", -1)),
     ], "risk_score")
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def build_scores(df: pd.DataFrame) -> pd.DataFrame:
+def build_scores(df: pd.DataFrame, weights: dict | None = None) -> pd.DataFrame:
     """
     Compute sector-neutral factor buckets and the composite for the full universe.
 
+    ``weights`` overrides the committed config/scoring.yml (equal-weight default).
     Returns the input frame plus trend_score / quality_score / value_score /
-    risk_score (sector-neutral z's, mean ~0 per sector) and composite_score,
-    sorted by composite descending. A bucket with too little data sits at the
-    neutral centre 0, never above a real stock.
+    risk_score (sector-neutral z's, mean ~0 per sector, neutral == 0) and
+    composite_score, sorted by composite descending.
     """
+    w = weights or load_weights()
+    sub = w["subfactors"]
+    comp = w["composite"]
     out = df.copy()
 
-    out["trend_score"]   = _trend_score(out)
-    out["quality_score"] = _quality_score(out)
-    out["value_score"]   = _value_score(out)
-    out["risk_score"]    = _risk_score(out)
+    out["trend_score"]   = _trend_score(out, sub["trend"])
+    out["quality_score"] = _quality_score(out, sub["quality"])
+    out["value_score"]   = _value_score(out, sub["value"])
+    out["risk_score"]    = _risk_score(out, sub["risk"])
 
     # Neutral fill: a bucket that could not be scored (all inputs missing / below
     # min-coverage) sits at 0 — the sector-neutral mean — NOT a 0.5 that would
@@ -202,13 +242,14 @@ def build_scores(df: pd.DataFrame) -> pd.DataFrame:
     score_cols = ["trend_score", "quality_score", "value_score", "risk_score"]
     out[score_cols] = out[score_cols].fillna(0.0)
 
-    # Composite: equal-weight mean of the sector-neutral buckets (Etap D adds the
-    # bucket re-standardization + config-driven weights).
+    # Composite = weighted sum of RE-STANDARDIZED buckets, so equal weights mean
+    # equal influence. The DISPLAYED bucket scores stay the interpretable sector-
+    # neutral z's (neutral == 0); the re-standardization is internal to the blend.
     out["composite_score"] = (
-        TREND_W   * out["trend_score"]
-        + QUALITY_W * out["quality_score"]
-        + VALUE_W   * out["value_score"]
-        + RISK_W    * out["risk_score"]
+        comp["trend"]   * _restandardize(out["trend_score"])
+        + comp["quality"] * _restandardize(out["quality_score"])
+        + comp["value"]   * _restandardize(out["value_score"])
+        + comp["risk"]    * _restandardize(out["risk_score"])
     )
 
     all_scores = score_cols + ["composite_score"]

@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Stock Selection Dashboard — scoring weights (INIT-22 M1 rework)
+# ─────────────────────────────────────────────────────────────────────────────
+# COMMITTED on purpose: this is a PUBLIC dashboard, so its production weights must
+# live in git — NOT in the gitignored config/settings.yml (whose `scoring:` block
+# was decorative and never read). scoring.py reads THIS file; editing a weight here
+# provably changes the ranking.
+#
+# Default = EQUAL WEIGHT at both levels. Absent a validated information coefficient
+# (the M1 rework ships no backtest), equal weight is the honest no-information
+# prior — hand-tuned weights would assert a precision we have not measured. Buckets
+# are re-standardized to unit variance before this composite, so "equal weight"
+# means equal INFLUENCE, not merely equal coefficients.
+# ─────────────────────────────────────────────────────────────────────────────
+
+composite:
+  trend:    0.25
+  quality:  0.25
+  value:    0.25
+  risk:     0.25
+
+subfactors:
+  trend:
+    ret_12_1:  0.5     # 12-1 skip-month momentum
+    ret_13w:   0.5     # 13-week return (responsiveness)
+  quality:
+    roe:                0.25
+    oper_margin_ttm:    0.25
+    fcf_margin_ttm:     0.25
+    roic:               0.25
+  value:                # yield-form (1/multiple): higher = cheaper = better
+    pe_ratio:       0.25
+    ev_ebitda:      0.25
+    pb_ratio:       0.25
+    dividend_yield: 0.25
+  risk:                 # lower raw = safer (negated in scoring)
+    volatility_26w: 0.3334
+    debt_equity:    0.3333
+    beta:           0.3333

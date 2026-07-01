@@ -14,7 +14,14 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from src.lib.scoring import build_scores, gaussian_rank, sector_neutralize
+from src.lib.scoring import (
+    _DEFAULT_WEIGHTS,
+    _restandardize,
+    build_scores,
+    gaussian_rank,
+    load_weights,
+    sector_neutralize,
+)
 
 N = 12
 
@@ -135,7 +142,8 @@ def test_sector_neutralization_zeroes_each_sector_mean():
     scored = build_scores(pd.DataFrame(rows))
     for sec in ("A", "B"):
         m = scored.loc[scored["sector"] == sec, "quality_score"].mean()
-        assert abs(m) < 1e-6, f"sector {sec} quality mean = {m}"
+        # ~0 up to 4-decimal rounding; a real sector tilt would be O(0.1)+.
+        assert abs(m) < 1e-3, f"sector {sec} quality mean = {m}"
 
 
 # ── Robustness ────────────────────────────────────────────────────────────────
@@ -169,3 +177,42 @@ def test_gaussian_rank_is_monotonic_and_finite():
     z = gaussian_rank(pd.Series([1.0, 2.0, 3.0, 4.0, 5.0]))
     assert list(z) == sorted(z)          # order preserved
     assert np.isfinite(z).all()          # no +/- inf at the tails
+
+
+# ── Composite: config-driven weights + bucket re-standardization (Etap D) ─────
+
+def _weights(composite: dict) -> dict:
+    return {"composite": composite, "subfactors": _DEFAULT_WEIGHTS["subfactors"]}
+
+
+def test_composite_weight_change_moves_the_ranking():
+    """Wiring proof: the weights genuinely drive the composite. A trend-only
+    weighting tops the highest-momentum stock; a risk-only weighting the safest."""
+    df = _base_universe()
+    df["ret_12_1"] = _mono()             # S11 highest momentum
+    df["volatility_26w"] = _mono()       # S00 safest
+    top_trend = build_scores(df, _weights(
+        {"trend": 1.0, "quality": 0.0, "value": 0.0, "risk": 0.0})).iloc[0]["ticker"]
+    top_risk = build_scores(df, _weights(
+        {"trend": 0.0, "quality": 0.0, "value": 0.0, "risk": 1.0})).iloc[0]["ticker"]
+    assert top_trend == "S11"
+    assert top_risk == "S00"
+    assert top_trend != top_risk
+
+
+def test_equal_weight_composite_is_mean_of_restandardized_buckets():
+    """With equal weights the composite is exactly the mean of the four buckets
+    AFTER each is re-standardized — the check that makes 'equal weight' real."""
+    df = _base_universe()
+    df["pe_ratio"] = _mono()
+    df["roe"] = _mono()[::-1]
+    df["ret_12_1"] = _mono()
+    scored = build_scores(df)            # equal weights (default)
+    buckets = ["trend_score", "quality_score", "value_score", "risk_score"]
+    expected = sum(_restandardize(scored[b]) for b in buckets) / 4.0
+    assert np.allclose(scored["composite_score"].to_numpy(),
+                       expected.to_numpy(), atol=1e-3)
+
+
+def test_load_weights_falls_back_when_file_missing(tmp_path):
+    assert load_weights(tmp_path / "nope.yml") == _DEFAULT_WEIGHTS
