@@ -105,6 +105,8 @@ def test_missing_prices_do_not_make_stock_look_safest():
 
 
 def test_missing_prices_trend_falls_back_to_neutral():
-    """All trend inputs NaN → trend_score is the neutral 0.50 fallback, not 0.0."""
+    """All trend inputs NaN → trend_score is the neutral centre 0.0 (the sector-
+    neutral mean after the M1 rework), NOT the old misleading 0.50 that beat real
+    stocks."""
     scored = build_scores(_universe_with_missing_price_stock()).set_index("ticker")
-    assert np.isclose(scored.loc["NODATA", "trend_score"], 0.50)
+    assert np.isclose(scored.loc["NODATA", "trend_score"], 0.0)

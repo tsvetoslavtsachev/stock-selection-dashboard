@@ -53,41 +53,46 @@
 
 ---
 
-### Слой 3 — Scoring (`src/lib/scoring.py`)
+### Слой 3 — Scoring (`src/lib/scoring.py`)  ·  INIT-22 M1 rework
 
-Отговорност: Нормализира всички факторни входове и изчислява composite score.
+Отговорност: Нормализира факторните входове **секторно-неутрално** и изчислява composite.
 
 #### Нормализация
 
-Всеки факторен вход се преобразува в **percentile rank [0, 1]** спрямо целия universe:
+Всеки под-фактор се изразява като **сигнал „по-високо = по-добре"** и минава през един
+общ конвейер — има точно **едно** място, където се прилага посока (`_signal`), затова
+разместен знак се хваща от directional тест:
+
+1. **Посока** — рисковите входове (vol / debt / beta) се негат (по-ниско = по-безопасно =
+   по-добре); value множителите се обръщат в **доходности** (E/P, EBITDA/EV, B/P = 1/множител),
+   така че по-евтин множител *и* отрицателен множител (отрицателна книга / EBITDA = лошо)
+   излизат с правилния знак. Останалото вече е „по-високо = по-добре".
+2. **Gaussianize** — inverse-normal (rankit): `percentile rank → Φ⁻¹`. Робъстно като ранг,
+   но z-скалирано, така че опашките носят magnitude (там е сигналът).
+3. **Секторна неутрализация** — пълна within-GICS-сектор стандартизация (de-mean + de-vol).
+   Композитът НЕ носи секторен облог („най-атрактивното *в сектора си*"; секторният наклон
+   е отделна, по-късна attribution). Сектор с < 10 члена → fallback към universe.
+
+#### Липсващи данни
+
+Комбинирането е coverage-aware per акция: липсващ под-фактор се изхвърля и теглото му се
+преразпределя, но бъкет се скорира само при **≥ 50 % налично тегло**, иначе → **неутралната
+среда 0** (след неутрализация 0 е секторната средна) — НЕ 0.5, което би било над реални акции.
+Ниско-покритите бъкети се свиват към 0 пропорционално на покритието.
+
+#### Факторни бъкети (сектор-неутрален z)
 
 ```
-percentile_rank(series) = series.rank(method="average", pct=True)
+Trend   = 0.70·z(ret_12_1) + 0.30·z(ret_13w)                       # 12-1 skip-month + 13w
+Quality = 0.30·z(roe) + 0.25·z(oper_margin) + 0.25·z(fcf_margin) + 0.20·z(roic)
+Value   = 0.35·z(E/P) + 0.30·z(EBITDA/EV) + 0.20·z(B/P) + 0.15·z(div_yield)   # yield-form
+Risk    = 0.50·(−z)(vol) + 0.30·(−z)(debt) + 0.20·(−z)(beta)
+
+Composite = равнопретеглена комбинация на 4-те бъкета
+            (Етап D: bucket re-стандартизация + тегла от committed `config/scoring.yml`)
 ```
 
-Това осигурява, че всеки фактор допринася на еднаква скала, независимо от мерните единици.
-
-#### Факторни формули
-
-```
-Trend score   = 0.40 × rank(ret_13w)
-              + 0.30 × rank(ret_26w)
-              + 0.30 × rank(ret_52w)
-
-Quality score = 0.40 × rank(revenue_growth_ttm)
-              + 0.30 × rank(oper_margin_ttm)
-              + 0.30 × rank(fcf_margin_ttm)
-
-Value score   = 1 − rank(ev_ebit)           ← инверсия: по-нисък EV/EBIT = по-добър
-Risk score    = 1 − rank(volatility_26w)    ← инверсия: по-ниска волатилност = по-добър
-
-Composite     = 0.35 × Trend
-              + 0.30 × Quality
-              + 0.20 × Value
-              + 0.15 × Risk
-```
-
-Всички тегла са конфигурируеми в `config/settings.yml`.
+Скоровете са **z-стойности** (средно ~0, могат да са отрицателни), не `[0, 1]`.
 
 ---
 
@@ -224,14 +229,13 @@ Steps:
     "ticker":            "NVDA",
     "name":              "NVIDIA Corp.",
     "sector":            "Technology",
-    "composite_score":   0.8124,
-    "trend_score":       0.9100,
-    "quality_score":     0.8800,
-    "value_score":       0.5500,
-    "risk_score":        0.4200,
+    "composite_score":   0.9800,
+    "trend_score":       1.4200,
+    "quality_score":     1.1000,
+    "value_score":      -0.3500,
+    "risk_score":       -0.2100,
+    "ret_12_1":          0.4450,
     "ret_13w":           0.3120,
-    "ret_26w":           0.5180,
-    "ret_52w":           0.8710,
     "volatility_26w":    0.4200,
     "revenue_growth_ttm":0.1220,
     "oper_margin_ttm":   0.5540,
@@ -247,14 +251,13 @@ Steps:
 | `ticker` | string | Stock symbol |
 | `name` | string | Company name |
 | `sector` | string | GICS сектор |
-| `composite_score` | float [0,1] | Претеглена сума на 4-те фактора |
-| `trend_score` | float [0,1] | Momentum percentile rank |
-| `quality_score` | float [0,1] | Profitability percentile rank |
-| `value_score` | float [0,1] | Inverted valuation percentile rank |
-| `risk_score` | float [0,1] | Inverted volatility percentile rank |
+| `composite_score` | float (z) | Равнопретеглена комбинация на 4-те сектор-неутрални бъкета |
+| `trend_score` | float (z) | Сектор-неутрален momentum (12-1 + 13w) |
+| `quality_score` | float (z) | Сектор-неутрален profitability |
+| `value_score` | float (z) | Сектор-неутрален yield-form valuation |
+| `risk_score` | float (z) | Сектор-неутрален (обърнат) риск |
+| `ret_12_1` | float | 12-1 skip-month momentum (decimal) |
 | `ret_13w` | float | 13-week price return (decimal) |
-| `ret_26w` | float | 26-week price return (decimal) |
-| `ret_52w` | float | 52-week price return (decimal) |
 | `volatility_26w` | float | Annualised 26-week volatility (decimal) |
 | `revenue_growth_ttm` | float | TTM revenue YoY growth (decimal) |
 | `oper_margin_ttm` | float | TTM operating margin (decimal) |
