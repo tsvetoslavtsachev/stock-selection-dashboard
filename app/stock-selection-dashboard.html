@@ -855,7 +855,10 @@ function tdPct(v, colored = true) {
 
 function tdScore(v) {
   if (v == null) return '<td class="val-na">—</td>';
-  const pct = Math.min(v * 100, 100);
+  // Composite is a sector-neutral z-score (~[-3, 3], centred at 0), NOT a [0,1]
+  // percentile — map z -> 0..100% bar width / red->green hue so a full green bar
+  // means a strongly above-average composite and a negative z shrinks toward red.
+  const pct = Math.max(0, Math.min((v + 3) / 6 * 100, 100));
   const hue = Math.round(pct * 1.2); // 0=red, 120=green
   const color = `hsl(${hue}, 65%, 50%)`;
   return `<td><span class="score-bar" style="width:${pct}%;background:${color}"></span>${v.toFixed(4)}</td>`;
