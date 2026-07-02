@@ -556,6 +556,21 @@ tbody td:nth-child(4) { text-align: left; color: var(--text-secondary); font-siz
   }
   .panel-right.collapsed { max-height: 0; }
 }
+
+/* Legend — how to read the sector-neutral z-scores */
+.legend {
+  max-width: 1600px;
+  margin: 8px auto 28px;
+  padding: 12px 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.legend strong, .legend b { color: var(--text-primary, #c9d1d9); font-weight: 600; }
+.legend em { font-style: normal; color: var(--accent, #58a6ff); }
 </style>
 </head>
 <body>
@@ -663,6 +678,16 @@ tbody td:nth-child(4) { text-align: left; color: var(--text-secondary); font-siz
   </div>
 
 </div>
+
+<footer class="legend">
+  <strong>Reading the scores.</strong>
+  Trend, Quality, Value, Risk and Composite are sector-neutral <em>z-scores</em> —
+  <b>higher is better</b> and <b>0 is the sector average</b> (roughly &minus;3 to +3, in
+  standard deviations). Risk follows the same direction: <b>higher = safer</b>
+  (lower volatility, debt and beta). Composite is the equal-weight mean of the four
+  factors, each first re-standardized so none dominates. Every stock is ranked
+  <em>within its GICS sector</em> — against its peers, not the whole market.
+</footer>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════════
