@@ -21,6 +21,7 @@ import math
 import pandas as pd
 
 from src.lib.io_utils import APP_DATA, DATA_PROCESSED, write_json
+from src.lib.scoring import load_weights
 
 logging.basicConfig(
     level=logging.INFO,
@@ -171,6 +172,9 @@ def run() -> None:
         "data_asof": data_asof,
         "data_age_days": data_age_days,
         "data_fresh": data_fresh,
+        # Live composite weights so the UI labels the factor contributions
+        # accurately (they follow config/scoring.yml, not a hard-coded default).
+        "composite_weights": load_weights().get("composite", {}),
     }
     write_json(summary, APP_DATA / "market_summary.json")
     logger.info("Wrote market_summary.json (top=%s)", summary["top_symbol"])

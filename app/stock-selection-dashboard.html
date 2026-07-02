@@ -674,6 +674,7 @@ let selectedTicker = null;
 let sortCol = 'composite_score';
 let sortAsc = false;
 let radarChartInstance = null;
+let compositeWeights = null;  // live composite factor weights (from market_summary.json / config)
 
 const DATA_BASE = 'data/';
 
@@ -688,6 +689,7 @@ async function init() {
     ]);
     allStocks = await stocksRes.json();
     const summary = await summaryRes.json();
+    compositeWeights = summary.composite_weights || null;
 
     renderKPIs(summary);
     buildSectorFilter();
@@ -915,6 +917,10 @@ function showDetail(stock) {
 
   // Scores
   const sc = document.getElementById('detailScores');
+  // Weights follow config/scoring.yml (published in market_summary); default is
+  // equal-weight. Labelled dynamically so they can never drift from the engine.
+  const w = compositeWeights || { trend: 0.25, quality: 0.25, value: 0.25, risk: 0.25 };
+  const wp = k => Math.round((w[k] ?? 0) * 100) + '%';
   sc.innerHTML = `
     <h3>Factor Scores</h3>
     <div class="score-grid">
@@ -923,19 +929,19 @@ function showDetail(stock) {
         <div class="score-val">${fmt(stock.composite_score, 4)}</div>
       </div>
       <div class="score-item">
-        <div class="score-label">Trend (30%)</div>
+        <div class="score-label">Trend (${wp('trend')})</div>
         <div class="score-val">${fmt(stock.trend_score, 4)}</div>
       </div>
       <div class="score-item">
-        <div class="score-label">Quality (30%)</div>
+        <div class="score-label">Quality (${wp('quality')})</div>
         <div class="score-val">${fmt(stock.quality_score, 4)}</div>
       </div>
       <div class="score-item">
-        <div class="score-label">Value (25%)</div>
+        <div class="score-label">Value (${wp('value')})</div>
         <div class="score-val">${fmt(stock.value_score, 4)}</div>
       </div>
       <div class="score-item">
-        <div class="score-label">Risk (15%)</div>
+        <div class="score-label">Risk (${wp('risk')})</div>
         <div class="score-val">${fmt(stock.risk_score, 4)}</div>
       </div>
     </div>
@@ -1020,10 +1026,14 @@ function renderRadar(stock) {
       maintainAspectRatio: true,
       scales: {
         r: {
-          beginAtZero: true,
-          max: 1,
+          // Bucket scores are sector-neutral z-scores (~[-3, 3], 0 = the sector
+          // average), NOT [0,1] percentiles — a symmetric radial axis centred on 0
+          // so a factor above its sector average pushes the polygon out and a
+          // below-average one pulls it in toward the centre.
+          min: -3,
+          max: 3,
           ticks: {
-            stepSize: 0.25,
+            stepSize: 1,
             font: { size: 10, family: '-apple-system, BlinkMacSystemFont, sans-serif' },
             color: '#656d76',
             backdropColor: 'transparent',
