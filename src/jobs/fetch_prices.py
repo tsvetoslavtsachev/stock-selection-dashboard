@@ -77,8 +77,10 @@ def _daily_yf_fallback(missing: list[str], period: str | None = None) -> dict[st
     base read via the consumer's per-field merge."""
     close: dict[str, pd.Series] = {}
     for sym in missing:
-        df = get_price_history(sym, period=period or _PERIOD, interval="1d")
-        if df is not None and not df.empty:
+        try:
+            df = get_price_history(sym, period=period or _PERIOD, interval="1d")
+            if df is None or df.empty:
+                continue
             s = df["Close"]
             # yfinance returns a tz-aware index; the archive base is tz-naive. Strip
             # the tz so the consumer's base+fallback merge does not raise on a
@@ -86,7 +88,13 @@ def _daily_yf_fallback(missing: list[str], period: str | None = None) -> dict[st
             if getattr(s.index, "tz", None) is not None:
                 s = s.copy()
                 s.index = s.index.tz_localize(None)
+            # Drop duplicate timestamps: a duplicated index makes pd.DataFrame(dict)
+            # raise ("cannot reindex on an axis with duplicate labels"), which would
+            # abort the whole (already-degraded) fallback run.
+            s = s[~s.index.duplicated(keep="last")]
             close[sym] = s
+        except Exception as exc:  # noqa: BLE001 — one bad symbol must not kill the fallback
+            logger.warning("[%s] daily fallback failed: %s", sym, exc)
     return {"Close": pd.DataFrame(close)}
 
 
@@ -139,6 +147,13 @@ def run(force: bool = False, max_age_days: int = 1) -> dict[str, int]:
     dot_tickers = [str(t).upper() for t in universe["ticker"]]
     # dot ("BRK.B") <-> dash ("BRK-B", the archive/Yahoo form) both directions.
     dash_of = {t: _to_yahoo_symbol(t) for t in dot_tickers}
+    # The dot->dash map must be 1:1; otherwise a dotted class share and a literal
+    # dash ticker collapse to one archive/Yahoo key and one constituent silently
+    # loses its CSV + provenance on the map-back.
+    if len(set(dash_of.values())) != len(dash_of):
+        seen: set[str] = set()
+        dups = sorted({d for d in dash_of.values() if d in seen or seen.add(d)})
+        raise ValueError(f"dot->dash symbol collision (would drop a constituent): {dups}")
     dot_of = {d: t for t, d in dash_of.items()}
     dash_tickers = [dash_of[t] for t in dot_tickers]
 

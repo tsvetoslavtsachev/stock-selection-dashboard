@@ -36,6 +36,10 @@ _N_LEADERS = 10
 # Tolerates a normal weekend/holiday gap on daily bars; the UI surfaces both the
 # exact `data_asof` date and this boolean so silent staleness is visible.
 _STALE_AFTER_DAYS = 5
+# Below this fraction of the universe carrying a real price bar, the data is
+# flagged not-fresh even if the newest bar is recent — a large partial outage
+# still degrades the ranking.
+_MIN_PRICE_COVERAGE = 0.90
 
 
 def _data_recency(df: pd.DataFrame) -> tuple[str | None, int | None, bool]:
@@ -46,14 +50,22 @@ def _data_recency(df: pd.DataFrame) -> tuple[str | None, int | None, bool]:
     NOT publish time. A scheduled job that runs but silently fetches nothing new
     keeps producing a fresh publish timestamp while the underlying bars go stale;
     this metric exposes that gap.
+
+    A TOTAL price outage (no ``price_asof`` column, or every value NaN) returns
+    ``fresh=False`` with a null date — the freshness badge is a safety feature and
+    must fail LOUD in its worst case (reporting ``fresh=True`` on zero real bars
+    would defeat its whole purpose). The UI shows a NO-PRICE-DATA badge then.
     """
     if "price_asof" not in df.columns:
-        return None, None, True
-    asof = pd.to_datetime(df["price_asof"], errors="coerce").max()
+        return None, None, False
+    asof_series = pd.to_datetime(df["price_asof"], errors="coerce")
+    asof = asof_series.max()
     if pd.isna(asof):
-        return None, None, True
-    age = (datetime.datetime.utcnow().date() - asof.date()).days
-    return asof.strftime("%Y-%m-%d"), int(age), age <= _STALE_AFTER_DAYS
+        return None, None, False
+    age = (datetime.datetime.now(datetime.timezone.utc).date() - asof.date()).days
+    coverage = float(asof_series.notna().mean())
+    fresh = (age <= _STALE_AFTER_DAYS) and (coverage >= _MIN_PRICE_COVERAGE)
+    return asof.strftime("%Y-%m-%d"), int(age), fresh
 
 # All columns to include in JSON output
 _META_COLS = ["ticker", "name", "sector", "data_quality"]

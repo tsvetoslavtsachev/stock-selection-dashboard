@@ -106,7 +106,10 @@ def main() -> None:
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--steps", nargs="+", choices=_STEP_NAMES, default=None)
     args = parser.parse_args()
-    run(force=args.force, steps=args.steps)
+    ok = run(force=args.force, steps=args.steps)
+    # Exit non-zero on any step failure so the CI step (and the commit that
+    # follows it) fail loud instead of silently shipping stale/partial data.
+    raise SystemExit(0 if ok else 1)
 
 
 if __name__ == "__main__":

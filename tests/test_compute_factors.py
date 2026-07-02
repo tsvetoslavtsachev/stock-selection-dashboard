@@ -70,9 +70,8 @@ def _universe_with_missing_price_stock() -> pd.DataFrame:
             "name":           ["A", "B", "C", "D", "No history"],
             "sector":         ["x"] * 5,
             "cik":            [""] * 5,
+            "ret_12_1":       [0.20, 0.15, 0.10, 0.05, np.nan],
             "ret_13w":        [0.05, 0.04, 0.03, 0.02, np.nan],
-            "ret_26w":        [0.10, 0.08, 0.06, 0.04, np.nan],
-            "ret_52w":        [0.20, 0.15, 0.10, 0.05, np.nan],
             # A is genuinely the safest (lowest real vol); NODATA's vol is MISSING.
             "volatility_26w": [0.15, 0.30, 0.35, 0.40, np.nan],
             "pe_ratio":       [15.0, 18.0, 20.0, 22.0, 19.0],

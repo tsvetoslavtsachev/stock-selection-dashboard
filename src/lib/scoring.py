@@ -70,15 +70,43 @@ _DEFAULT_WEIGHTS: dict = {
 }
 
 
+def _valid_weights(data) -> bool:
+    """Deep-validate a loaded config against the default SCHEMA: the composite and
+    every sub-factor bucket must carry EXACTLY the expected keys with numeric
+    values. A shallow "has composite+subfactors" check would let a mistyped or
+    renamed sub-factor key (this file is hand-edited) pass, then crash build_scores
+    with a KeyError deep in the blend instead of falling back to equal weight."""
+    if not isinstance(data, dict):
+        return False
+    try:
+        if set(data.get("composite", {})) != set(_DEFAULT_WEIGHTS["composite"]):
+            return False
+        if set(data.get("subfactors", {})) != set(_DEFAULT_WEIGHTS["subfactors"]):
+            return False
+        for bucket, subs in _DEFAULT_WEIGHTS["subfactors"].items():
+            got = data["subfactors"][bucket]
+            if set(got) != set(subs):
+                return False
+            for v in got.values():
+                float(v)
+        for v in data["composite"].values():
+            float(v)
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return False
+    return True
+
+
 def load_weights(path: Path = _CONFIG_PATH) -> dict:
     """Read committed scoring weights; fall back to the equal-weight default if the
-    file is missing or malformed (so a bare checkout still scores sensibly)."""
+    file is missing or malformed (so a bare checkout — or a fat-fingered edit —
+    still scores sensibly instead of crashing the pipeline)."""
     try:
         data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-        if isinstance(data, dict) and "composite" in data and "subfactors" in data:
-            return data
     except (OSError, yaml.YAMLError):
-        pass
+        data = None
+    if _valid_weights(data):
+        return data
+    logger.warning("scoring.yml missing/malformed — using equal-weight defaults")
     return _DEFAULT_WEIGHTS
 
 
@@ -153,8 +181,13 @@ def _combine_z(components: list[tuple[float, pd.Series]], name: str,
         w_present = w_present + weight * z.notna().astype(float)
     cover = w_present / total_w
     blend = num / w_present.where(w_present > 0, np.nan)
+    # Below the min-coverage floor the blend is dropped to NaN (-> neutral 0
+    # downstream). Present-but-partial names keep the honest weighted mean of the
+    # signals they DO have: an ad-hoc coverage shrink here would only pull them
+    # toward neutral (a soft return of the very bias this rewrite removes) and is
+    # anyway redundant with the unit-variance re-standardization in build_scores.
     blend = blend.where(cover >= min_coverage, np.nan)
-    return (blend * cover).rename(name)
+    return blend.rename(name)
 
 
 # ── Sub-factor buckets ────────────────────────────────────────────────────────

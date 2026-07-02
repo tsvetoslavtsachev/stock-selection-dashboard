@@ -714,13 +714,17 @@ function renderFreshness(s) {
   if (s.as_of) {
     txt = 'Updated: ' + new Date(s.as_of).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
-  if (s.data_asof) {
-    txt += (txt ? '  ·  ' : '') + 'Data: ' + s.data_asof;
-    if (s.data_fresh === false) {
-      const age = (s.data_age_days != null) ? ' (' + s.data_age_days + 'd old)' : '';
-      el.innerHTML = txt + ' <span style="background:#b91c1c;color:#fff;padding:1px 6px;border-radius:4px;font-weight:600;font-size:0.85em;">STALE' + age + '</span>';
-      return;
-    }
+  if (!s.data_asof) {
+    // Total price outage — the ranking is not backed by any fresh bar. The badge
+    // is gated on a truthy data_asof, so fresh=false alone would show nothing.
+    el.innerHTML = txt + (txt ? ' ' : '') + '<span style="background:#b91c1c;color:#fff;padding:1px 6px;border-radius:4px;font-weight:600;font-size:0.85em;">NO PRICE DATA</span>';
+    return;
+  }
+  txt += (txt ? '  ·  ' : '') + 'Data: ' + s.data_asof;
+  if (s.data_fresh === false) {
+    const age = (s.data_age_days != null) ? ' (' + s.data_age_days + 'd old)' : '';
+    el.innerHTML = txt + ' <span style="background:#b91c1c;color:#fff;padding:1px 6px;border-radius:4px;font-weight:600;font-size:0.85em;">STALE' + age + '</span>';
+    return;
   }
   el.textContent = txt;
 }

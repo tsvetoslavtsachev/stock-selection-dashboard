@@ -35,15 +35,27 @@ def main() -> int:
         return 1
     payload = json.loads(SOURCE.read_text(encoding="utf-8"))
     by_symbol = payload.get("by_symbol", {})
+    expected = int(payload.get("summary", {}).get("expected", 0))
     if not by_symbol:
-        print("assert_base_sourced: price_source empty -- nothing sourced this run -- OK.")
-        return 0
+        # Empty is NOT ok for this static ~503-symbol universe: it means the run
+        # sourced ZERO symbols (archive AND fallback both dead) -- a total outage
+        # that must fail RED, never pass green.
+        print("FAIL: price_source empty -- the run sourced ZERO symbols "
+              "(archive + fallback both failed).", file=sys.stderr)
+        return 1
 
     base = sorted(t for t, s in by_symbol.items() if s == "base")
     fetch = sorted(t for t, s in by_symbol.items() if s != "base")
     covered = len(by_symbol)
     base_frac = len(base) / covered if covered else 0.0
     unexpected = [t for t in fetch if t not in ALLOWLIST]
+
+    # Cross-check breadth: a run that sourced only a slice of the expected universe
+    # (mass drop) must fail even if that slice is 100% base-sourced.
+    if expected and covered < 0.90 * expected:
+        print(f"FAIL: covered {covered} < 90% of expected {expected} -- a large "
+              "slice of the universe was dropped entirely.", file=sys.stderr)
+        return 1
 
     print(f"assert_base_sourced: {len(base)}/{covered} base ({base_frac:.1%}); "
           f"{len(fetch)} fetch ({len(unexpected)} unexpected, "

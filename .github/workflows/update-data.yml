@@ -77,7 +77,13 @@ jobs:
           fetch-depth: 1
 
       - name: Run pipeline
-        run: python -m src.jobs.run_pipeline
+        run: |
+          # Stale-guard: if fetch_prices crashes before it rewrites price_source.json,
+          # the guard must see NO file (=> RED) rather than read last run's provenance
+          # and pass a total outage green. run_pipeline exits non-zero on any step
+          # failure, so this step (and the commit) fail loud.
+          rm -f price_source.json
+          python -m src.jobs.run_pipeline
         env:
           # When the base checkouts ran, the consumer reads canon from .price-archive via the P1
           # reader on PYTHONPATH; otherwise these point at absent dirs, the import fails, and

@@ -89,13 +89,17 @@ def test_higher_roe_scores_higher_quality():
     assert q.loc["S00"] == q.min()
 
 
-def test_negative_book_value_ranks_bottom_on_value():
-    """Yield-form fix: negative book (pb < 0) is a distress signal, not 'cheap'.
-    The old 1 - rank(pb) ranked it as the CHEAPEST stock."""
+def test_negative_book_and_expensive_rank_below_cheap_on_value():
+    """Yield-form fix, made DISCRIMINATING: 1/pb must order cheap > expensive >
+    negative-book. A no-inversion mutation (raw pb, higher=better) would instead
+    put the most EXPENSIVE (pb=100) at the TOP, so this fails without the fix; and
+    negative book (distress) must land at the very bottom, never 'cheapest'."""
     df = _base_universe()
-    df["pb_ratio"] = [2.0] * (N - 1) + [-1.0]       # S11 has negative book value
+    # S00..S09 normal (pb 2), S10 wildly expensive (pb 100), S11 negative book (-1).
+    df["pb_ratio"] = [2.0] * (N - 2) + [100.0, -1.0]
     v = build_scores(df).set_index("ticker")["value_score"]
-    assert v.loc["S11"] == v.min()
+    assert v.loc["S11"] == v.min()          # negative book = worst, not "cheapest"
+    assert v.loc["S10"] < v.loc["S00"]      # expensive ranks below cheap (discriminator)
 
 
 # ── Missing-data bias — the NaN-injection test ────────────────────────────────
@@ -144,6 +148,34 @@ def test_sector_neutralization_zeroes_each_sector_mean():
         m = scored.loc[scored["sector"] == sec, "quality_score"].mean()
         # ~0 up to 4-decimal rounding; a real sector tilt would be O(0.1)+.
         assert abs(m) < 1e-3, f"sector {sec} quality mean = {m}"
+
+
+def test_sector_neutralize_gives_unit_within_sector_variance():
+    """The de-VOL half (dropping `/ std` would still zero each sector's mean and
+    pass the test above). Two sectors with very different within-sector spread must
+    BOTH come out at ~unit within-sector std after full standardization."""
+    secA = np.linspace(0.200, 0.205, N)   # tiny raw spread
+    secB = np.linspace(0.020, 0.400, N)   # wide raw spread
+    vals = pd.Series(list(secA) + list(secB))
+    sector = pd.Series(["A"] * N + ["B"] * N)
+    zn = sector_neutralize(gaussian_rank(vals), sector)
+    for sec in ("A", "B"):
+        s = zn[(sector == sec).to_numpy()].std(ddof=0)
+        assert abs(s - 1.0) < 0.05, f"sector {sec} within-sector std = {s}"
+
+
+def test_small_sector_falls_back_to_universe_standardization():
+    """A sector with < 10 members must be standardized against the UNIVERSE, not
+    within itself (too few points). Three genuinely high-roe names in a tiny sector
+    should keep a clearly positive neutralized mean; within-sector z would force it
+    to ~0 and erase the real signal."""
+    big = np.linspace(0.05, 0.15, N)      # a normal large sector, mid-range roe
+    small = [0.40, 0.42, 0.44]            # 3 names, all far above the universe
+    vals = pd.Series(list(big) + small)
+    sector = pd.Series(["BIG"] * N + ["SMALL"] * 3)
+    zn = sector_neutralize(gaussian_rank(vals), sector)
+    small_mean = zn[(sector == "SMALL").to_numpy()].mean()
+    assert small_mean > 0.5, f"small-sector mean {small_mean} — was it de-meaned within-sector?"
 
 
 # ── Robustness ────────────────────────────────────────────────────────────────
@@ -212,6 +244,32 @@ def test_equal_weight_composite_is_mean_of_restandardized_buckets():
     expected = sum(_restandardize(scored[b]) for b in buckets) / 4.0
     assert np.allclose(scored["composite_score"].to_numpy(),
                        expected.to_numpy(), atol=1e-3)
+
+
+def test_restandardize_is_unit_variance():
+    """Direct, NON-tautological pin on the re-standardization: an input with std
+    far from 1 must come out at std ~1. (The composite test above computes its
+    expected via _restandardize too, so on its own an identity mutation would slip
+    through both sides — this catches it.)"""
+    s = pd.Series(np.linspace(0.0, 10.0, 50))     # std ~= 2.96, nowhere near 1
+    out = _restandardize(s)
+    assert abs(out.std(ddof=0) - 1.0) < 1e-9
+    assert abs(out.mean()) < 1e-9
+
+
+def test_deep_invalid_config_falls_back(tmp_path):
+    """A structurally-wrong config (mistyped sub-factor key) must fall back to the
+    equal-weight default, not pass shallow validation and later KeyError."""
+    bad = tmp_path / "scoring.yml"
+    bad.write_text(
+        "composite: {trend: 0.25, quality: 0.25, value: 0.25, risk: 0.25}\n"
+        "subfactors:\n"
+        "  trend: {ret_12_1: 0.5, ret_13w: 0.5}\n"
+        "  quality: {roe: 0.25, oper_margin_ttm: 0.25, fcf_margin_ttm: 0.25, roic: 0.25}\n"
+        "  value: {pe_ratio: 0.25, ev_ebitda: 0.25, pb_ratio: 0.25, dividend_yield: 0.25}\n"
+        "  risk: {volatility_26w: 0.34, debt_TYPO: 0.33, beta: 0.33}\n",  # debt_equity mistyped
+        encoding="utf-8")
+    assert load_weights(bad) == _DEFAULT_WEIGHTS
 
 
 def test_load_weights_falls_back_when_file_missing(tmp_path):
