@@ -26,9 +26,10 @@ Combining is coverage-aware per stock (``_combine_z``): a missing sub-factor is
 dropped and its weight redistributed across the present ones, but a bucket is
 only scored when >= 50% of its weight is present — below that it is NaN and
 falls back to the NEUTRAL centre 0 (post-neutralization, 0 is the sector mean),
-never a 0.5 that would beat real stocks. Low-coverage buckets are shrunk toward 0
-in proportion to their coverage (a mean of fewer z's has inflated variance and
-would otherwise drift to the tails).
+never a 0.5 that would beat real stocks. Present-but-partial buckets keep the
+honest weighted mean of the signals they have — there is no coverage shrink (it
+would softly re-introduce the very missing-data bias this rework removes, and is
+redundant with the unit-variance re-standardization below).
 
 Composite = weighted sum of the buckets after each is re-standardized to unit
 variance (so equal weight -> equal influence); the weights come from the committed
@@ -168,9 +169,9 @@ def _combine_z(components: list[tuple[float, pd.Series]], name: str,
 
     A missing component is dropped and its weight redistributed across the present
     ones. A stock scores only when the present weight is >= ``min_coverage`` of the
-    total; otherwise NaN (neutral 0 downstream). The blend is shrunk toward 0 by
-    the coverage fraction so low-coverage names (a mean of fewer, higher-variance
-    z's) do not drift into the tails on thin data.
+    total; otherwise NaN (neutral 0 downstream). Present-but-partial names keep the
+    honest weighted mean of the signals they have — no coverage shrink (see the
+    inline note below on why an ad-hoc shrink is deliberately omitted).
     """
     index = components[0][1].index
     num = pd.Series(0.0, index=index)
