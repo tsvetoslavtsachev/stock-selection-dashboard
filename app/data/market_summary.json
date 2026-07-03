@@ -3,11 +3,11 @@
   "missing_price_count": 0,
   "partial_price_count": 1,
   "top_symbol": "MO",
-  "top_score": 0.8118,
+  "top_score": 0.8117,
   "top_sector": "Consumer Staples",
   "bottom_symbol": "NRG",
-  "bottom_score": 0.1524,
-  "median_composite": 0.4988,
+  "bottom_score": 0.1535,
+  "median_composite": 0.4986,
   "avg_composite": 0.5024,
   "avg_pe": 25.5,
   "avg_roe": 0.159,
@@ -24,5 +24,5 @@
     "Communication Services": 23,
     "Energy": 22
   },
-  "as_of": "2026-07-02T23:27:10Z"
+  "as_of": "2026-07-03T23:26:03Z"
 }
