@@ -733,7 +733,26 @@ async function init() {
 /* ═══════════════════════════════════════════════════════════════════════════
    FRESHNESS — publish time + data recency (newest price bar), with a visible
    STALE badge so a silently frozen pipeline cannot masquerade as fresh.
+
+   The age is recomputed CLIENT-SIDE from data_asof against today: the published
+   data_fresh boolean is frozen at publish time, so a job that DIES (stops
+   committing) would keep a permanently green boolean while the bars rot. We show
+   STALE if EITHER the frozen boolean already says so OR the client-side age has
+   crossed the (published) threshold since publish. Server-side fields are kept.
    ═══════════════════════════════════════════════════════════════════════════ */
+const _DEFAULT_STALE_AFTER_DAYS = 5;  // fallback if the JSON predates stale_after_days
+
+function _clientAgeDays(dataAsof) {
+  // data_asof is a UTC calendar date ("YYYY-MM-DD"); compare in UTC so this
+  // matches the server's datetime.now(timezone.utc).date() arithmetic exactly.
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dataAsof);
+  if (!m) return null;
+  const asofUTC = Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  const now = new Date();
+  const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.floor((todayUTC - asofUTC) / 86400000);
+}
+
 function renderFreshness(s) {
   const el = document.getElementById('asOf');
   if (!el) return;
@@ -748,8 +767,16 @@ function renderFreshness(s) {
     return;
   }
   txt += (txt ? '  ·  ' : '') + 'Data: ' + s.data_asof;
-  if (s.data_fresh === false) {
-    const age = (s.data_age_days != null) ? ' (' + s.data_age_days + 'd old)' : '';
+
+  // Client-side recency: recompute age NOW so a dead workflow can't stay green.
+  const threshold = (typeof s.stale_after_days === 'number') ? s.stale_after_days : _DEFAULT_STALE_AFTER_DAYS;
+  const ageNow = _clientAgeDays(s.data_asof);
+  const staleNow = (ageNow != null) && (ageNow > threshold);
+
+  if (s.data_fresh === false || staleNow) {
+    // Prefer the live client-side age; fall back to the published one.
+    const shownAge = (ageNow != null) ? ageNow : s.data_age_days;
+    const age = (shownAge != null) ? ' (' + shownAge + 'd old)' : '';
     el.innerHTML = txt + ' <span style="background:#b91c1c;color:#fff;padding:1px 6px;border-radius:4px;font-weight:600;font-size:0.85em;">STALE' + age + '</span>';
     return;
   }

@@ -12,6 +12,9 @@ import datetime
 
 import pandas as pd
 
+import json
+
+from src.jobs import publish_site_data
 from src.jobs.publish_site_data import (
     _MIN_PRICE_COVERAGE,
     _STALE_AFTER_DAYS,
@@ -76,3 +79,34 @@ def test_recency_partial_outage_below_coverage_floor_is_not_fresh():
     assert asof == recent          # newest bar is genuinely recent
     assert fresh is False          # ... but coverage 0.2 < floor
     assert _MIN_PRICE_COVERAGE > 0.2
+
+
+# ── F3: staleness threshold travels in the JSON (single source of truth) ──────
+
+def test_publish_emits_stale_after_days_from_the_constant(tmp_path, monkeypatch):
+    """The UI recomputes freshness client-side against TODAY, so it needs the
+    threshold — which must be the SAME constant the server uses, not a second copy.
+    Publishing it means a dead workflow (frozen data_fresh boolean) still trips the
+    client-side STALE badge. Pin: market_summary.json.stale_after_days ==
+    _STALE_AFTER_DAYS, so the two can never drift."""
+    today = datetime.datetime.now(datetime.timezone.utc).date()
+    recent = (today - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+    ranks = tmp_path / "ranks.csv"
+    pd.DataFrame({
+        "ticker": ["AAA", "BBB"],
+        "name": ["A", "B"],
+        "sector": ["Tech", "Tech"],
+        "composite_score": [1.0, -1.0],
+        "price_asof": [recent, recent],
+    }).to_csv(ranks, index=False)
+
+    app_data = tmp_path / "app_data"
+    app_data.mkdir()
+    monkeypatch.setattr(publish_site_data, "_RANKS_CSV", ranks)
+    monkeypatch.setattr(publish_site_data, "APP_DATA", app_data)
+
+    publish_site_data.run()
+
+    summary = json.loads((app_data / "market_summary.json").read_text(encoding="utf-8"))
+    assert summary["stale_after_days"] == _STALE_AFTER_DAYS
+    assert summary["data_asof"] == recent

@@ -172,6 +172,11 @@ def run() -> None:
         "data_asof": data_asof,
         "data_age_days": data_age_days,
         "data_fresh": data_fresh,
+        # Publish the staleness threshold so the UI can recompute freshness
+        # client-side against TODAY (not just trust this frozen boolean) — a job
+        # that dies stops updating data_asof but the boolean would stay green.
+        # One source of truth for the threshold: this same constant.
+        "stale_after_days": _STALE_AFTER_DAYS,
         # Live composite weights so the UI labels the factor contributions
         # accurately (they follow config/scoring.yml, not a hard-coded default).
         "composite_weights": load_weights().get("composite", {}),
