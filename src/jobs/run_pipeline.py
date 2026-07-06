@@ -40,6 +40,11 @@ def _step_fetch_prices(force: bool) -> None:
     if stats["errors"] > 0:
         logger.warning("fetch_prices: %d errors (%d fetched, %d skipped)",
                         stats["errors"], stats["fetched"], stats["skipped"])
+    # Mirror the CLI guard (fetch_prices.main): zero fetched = total price outage.
+    # The CLI exits 1, but CI runs the pipeline via run_pipeline and would otherwise
+    # sail past it and publish a stale/empty ranking on a green run.
+    if stats["fetched"] == 0:
+        raise RuntimeError("fetch_prices fetched 0 tickers — total price outage, refusing to continue")
 
 
 def _step_compute_factors(_force: bool) -> None:
