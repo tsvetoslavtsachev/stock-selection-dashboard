@@ -6,7 +6,8 @@
 
 ## Принципи на дизайна
 
-- **No paid backend** — всичко работи с безплатни услуги (SEC EDGAR, GitHub Actions, GitHub Pages)
+- **No paid backend** — всичко работи с безплатни услуги (Yahoo Finance чрез `yfinance`,
+  каноничния price-archive, GitHub Actions, GitHub Pages)
 - **Statically served frontend** — браузърът чете само готови JSON файлове; не прави API calls
 - **Modular Python** — всеки слой е независим модул; лесна замяна на data source
 - **Fail-soft pipeline** — грешка в един job не спира публикуването с наличните данни
@@ -16,19 +17,27 @@
 
 ## 5-те слоя
 
-### Слой 1 — Ingestion (`src/jobs/fetch_sec.py`, `src/jobs/fetch_prices.py`)
+### Слой 1 — Ingestion (`src/jobs/fetch_prices.py`)
 
-Отговорност: Изтегля суровите данни от外部 sources и ги записва локално.
+Отговорност: Изтегля суровите данни от външни sources и ги записва локално.
 
-| Source | Endpoint | Output | Auth |
+| Source | Какво | Output | Auth |
 |---|---|---|---|
-| SEC EDGAR | `data.sec.gov/api/xbrl/companyfacts/CIK{cik10}.json` | `data/raw/sec/{symbol}/companyfacts.json` | User-Agent header |
-| SEC EDGAR | `data.sec.gov/submissions/CIK{cik10}.json` | `data/raw/sec/{symbol}/submissions.json` | User-Agent header |
-| Alpha Vantage | `TIME_SERIES_WEEKLY_ADJUSTED` | `data/raw/prices/{symbol}.json` | API key (env var) |
+| price-archive (каноничен, INIT-22 P9) | split-adjusted, drift-proof total-return close, base-first през `collectors.price.consumer.load_ohlcv_base_first` | `data/raw/prices/{symbol}.csv` | DATACORE_ROOT (private) |
+| Yahoo Finance (`yfinance`) | CLOSED fallback за липсващи в архива тикери (дневен close) | `data/raw/prices/{symbol}.csv` | — |
+| Yahoo Finance (`yfinance` `.info`) | фундаментали (виж Слой 2) | in-memory при `compute_factors` | — |
+
+Цените идват **base-first от каноничния price-archive**; per-ticker yfinance pull-ът е
+запазен само като CLOSED fallback за тикери, липсващи в архива (RIV-2 capstone: base-ът
+съвпада с `yfinance auto_adjust=True` до ~1e-6).
 
 Поведение при повторно изпълнение:
-- `fetch_sec` — skip ако файловете вече съществуват (освен `--force`)
 - `fetch_prices` — skip ако файлът е по-млад от `price_max_age_days` (default 1 ден)
+
+> `src/jobs/fetch_sec.py` + `src/lib/sec_client.py` (SEC EDGAR XBRL) и
+> `src/lib/alpha_vantage_client.py` съществуват, но **НЕ са част от живия pipeline**
+> (`run_pipeline` вика само `fetch_prices → compute_factors → publish_site_data`).
+> SEC fetching е опционален инструмент за дълбок XBRL анализ, не production вход.
 
 ---
 
@@ -36,20 +45,25 @@
 
 Отговорност: Парсира суровите JSON файлове и извлича числови факторни входове.
 
-**Цени (Alpha Vantage → `ret_13w`, `ret_26w`, `ret_52w`, `volatility_26w`):**
-- Чете `"Weekly Adjusted Time Series"` → adjusted close prices
+**Цени (price-archive base-first → `ret_12_1`, `ret_13w`, `volatility_26w`):**
+- Чете каноничния total-return close (`data/raw/prices/{symbol}.csv`), resample-нат до седмичен
 - Изчислява total returns между последната и N-та bar назад
 - Annualised volatility = σ(log weekly returns) × √52
 
-**Фундаментали (SEC EDGAR → `revenue_growth_ttm`, `oper_margin_ttm`, `fcf_margin_ttm`):**
-- Парсира `facts.us-gaap.{concept}.units.USD` от companyfacts JSON
-- Сумира последните 4 тримесечни стойности за TTM
-- Поддържани концепти:
-  - Revenue: `Revenues`, `RevenueFromContractWithCustomerExcludingAssessedTax`, `SalesRevenueNet`
-  - Operating Income: `OperatingIncomeLoss`
-  - Operating Cash Flow: `NetCashProvidedByUsedInOperatingActivities`
-  - CapEx: `PaymentsToAcquirePropertyPlantAndEquipment`
-- Липсващи данни → попълва с `0.0`
+**Фундаментали (Yahoo Finance `info` → `roe`, `oper_margin_ttm`, `fcf_margin_ttm`, `roic`,
+множители, `beta`, `debt_equity`, `dividend_yield`):**
+- `src/lib/yfinance_client.py:get_fundamentals` чете `yf.Ticker(symbol).info` dict
+- Директни полета: `trailingPE`, `priceToBook`, `enterpriseToEbitda`, `returnOnEquity`,
+  `debtToEquity` (÷100 → десетична), `operatingMargins`, `revenueGrowth`, `dividendYield`
+  (÷100 → десетична), `beta`
+- Апроксимации от тримесечните отчети (не директно в `info`):
+  - `roic` ≈ EBIT(TTM) / (Total Assets − Current Liabilities), най-скорошното тримесечие
+  - `fcf_margin_ttm` ≈ `freeCashflow / totalRevenue`, fallback `OCF_ttm − |CapEx_ttm|`
+- Липсваща стойност → `None` (обработва се надолу: coverage-aware, НЕ 0.0-fill)
+
+> Историческият дизайн предвиждаше SEC EDGAR XBRL (`facts.us-gaap.{concept}`) като
+> източник на фундаментали, но живият pipeline го замени с Yahoo `info`. `sec_client.py`
+> остава за опционален дълбок XBRL анализ, не за production scoring.
 
 ---
 
@@ -83,14 +97,21 @@
 #### Факторни бъкети (сектор-неутрален z)
 
 ```
-Trend   = 0.70·z(ret_12_1) + 0.30·z(ret_13w)                       # 12-1 skip-month + 13w
-Quality = 0.30·z(roe) + 0.25·z(oper_margin) + 0.25·z(fcf_margin) + 0.20·z(roic)
-Value   = 0.35·z(E/P) + 0.30·z(EBITDA/EV) + 0.20·z(B/P) + 0.15·z(div_yield)   # yield-form
-Risk    = 0.50·(−z)(vol) + 0.30·(−z)(debt) + 0.20·(−z)(beta)
+Trend   = 0.5·z(ret_12_1) + 0.5·z(ret_13w)                          # 12-1 skip-month + 13w
+Quality = 0.25·z(roe) + 0.25·z(oper_margin) + 0.25·z(fcf_margin) + 0.25·z(roic)
+Value   = 0.25·z(E/P) + 0.25·z(EBITDA/EV) + 0.25·z(B/P) + 0.25·z(div_yield)   # yield-form
+Risk    = 0.3334·(−z)(vol) + 0.3333·(−z)(debt) + 0.3333·(−z)(beta)
 
 Composite = равнопретеглена комбинация на 4-те бъкета
             (Етап D: bucket re-стандартизация + тегла от committed `config/scoring.yml`)
 ```
+
+**Всички тегла са equal-weight** (виж `config/scoring.yml`) — на ниво бъкети (0.25 ×4)
+и на ниво под-фактори. При липса на валидиран information coefficient (M1 rework-ът
+не съдържа backtest) equal-weight е честният no-information prior; ръчно настроени
+тегла биха твърдели точност, която не е измерена. Понеже бъкетите се ре-стандартизират
+до единична дисперсия преди composite-а, „equal weight" значи равно ВЛИЯНИЕ, не просто
+равни коефициенти.
 
 Скоровете са **z-стойности** (средно ~0, могат да са отрицателни), не `[0, 1]`.
 
@@ -130,31 +151,26 @@ Composite = равнопретеглена комбинация на 4-те бъ
                            │
               python -m src.jobs.run_pipeline
                            │
-           ┌───────────────┼───────────────┐
-           │               │               │
-           ▼               ▼               │
-   ┌──────────────┐ ┌──────────────┐       │
-   │  fetch_sec   │ │ fetch_prices │       │
-   │              │ │              │       │
-   │ SEC EDGAR    │ │ Alpha Vantage│       │
-   │ companyfacts │ │ weekly adj.  │       │
-   │ submissions  │ │ time series  │       │
-   └──────┬───────┘ └──────┬───────┘       │
-          │                │               │
-          ▼                ▼               │
-   data/raw/sec/     data/raw/prices/      │
-   {symbol}/          {symbol}.json        │
-   companyfacts.json                       │
-   submissions.json                        │
-          │                │               │
-          └───────┬─────────┘              │
-                  │                        │
-                  ▼                        │
+                           ▼                │
+                   ┌──────────────┐         │
+                   │ fetch_prices │         │
+                   │              │         │
+                   │ price-archive│         │
+                   │ (base-first) │         │
+                   │ yfinance     │         │
+                   │ (CLOSED f/b) │         │
+                   └──────┬───────┘         │
+                          │                 │
+                          ▼                 │
+                   data/raw/prices/         │
+                    {symbol}.csv            │
+                          │                 │
+                          ▼                 │
         ┌──────────────────┐               │
         │  compute_factors │               │
         │                  │               │
         │  parse prices    │               │
-        │  parse XBRL      │               │
+        │  yfinance .info  │  ← фундаментали │
         │  percentile_rank │               │
         │  build_scores    │               │
         └────────┬─────────┘               │
@@ -203,13 +219,19 @@ Steps:
   1. checkout (fetch-depth: 0)
   2. Python 3.11 + pip cache
   3. pip install -r requirements.txt
-  4. cp config/settings.example.yml config/settings.yml
-  5. python -m src.jobs.run_pipeline
-     env: ALPHA_VANTAGE_API_KEY (от GitHub Secret)
-  6. git add app/data/ data/processed/ data/raw/
-  7. git commit (само ако има промени)
-  8. git push
+  4. python -m pytest tests/ -q
+  5. cp config/settings.example.yml config/settings.yml
+  6. checkout data-core + price-archive + collectors (само ако двата RO PAT-а са зададени)
+     → base-first канонични цени; иначе fetch_prices пада към DAILY yfinance fallback
+  7. python -m src.jobs.run_pipeline
+     env: DATACORE_ROOT, PYTHONPATH (сочат checkout-натите base репота)
+  8. python scripts/assert_base_sourced.py  (RED при тих mass-fallback към yfinance)
+  9. git add app/data/ price_source.json
+ 10. git commit (само ако има промени) + push
 ```
+
+Секрети: `DATACORE_RO_PAT` + `PRICE_ARCHIVE_RO_PAT` (read-only checkout на каноничните
+base репота). Няма `ALPHA_VANTAGE_API_KEY` — Alpha Vantage не е част от живия pipeline.
 
 `config/settings.yml` се генерира в стъпка 4 от settings.example.yml.  
 Никога не се commit-ва — само се ползва runtime в CI.
@@ -290,11 +312,11 @@ Steps:
 
 ## Разширяване
 
-### Нов data source (напр. финансови данни от Yahoo Finance)
+### Нов data source (напр. алтернативен фундаментален feed)
 
-1. Създай `src/lib/yahoo_client.py` по аналогия с `alpha_vantage_client.py`
-2. Добави job `src/jobs/fetch_yahoo.py`
-3. Включи го в `run_pipeline.py` между `fetch_sec` и `compute_factors`
+1. Създай `src/lib/{source}_client.py` по аналогия с `yfinance_client.py`
+2. Добави job `src/jobs/fetch_{source}.py`
+3. Включи го в `run_pipeline._ALL_STEPS` преди `compute_factors`
 4. Не е нужна промяна в scoring или publish слоевете
 
 ### Нов фактор (напр. Momentum Acceleration)
