@@ -257,6 +257,70 @@ def test_restandardize_is_unit_variance():
     assert abs(out.mean()) < 1e-9
 
 
+def test_restandardize_does_not_amplify_on_coverage_collapse():
+    """F1 regression: re-standardizing against the ZERO-padded column (the old bug)
+    lets a fundamental-coverage collapse AMPLIFY the scored names — the neutral
+    zeros shrink the std, so dividing by it inflates the scored z's.
+
+    Model of the proof: the SAME 60 scored names, once inside a full 500-name
+    bucket and once padded out to 500 with neutral zeros (440 names lost fundamental
+    coverage). Standardized against the scored sub-population, the scored names must
+    keep the SAME re-standardized values in both — no amplification. Against the
+    whole zero-padded column they blow up by ~2.7x (the documented failure)."""
+    rng = np.random.default_rng(0)
+    scored_vals = pd.Series(rng.normal(0.0, 1.0, 60))
+
+    # (a) full coverage: all 60 are the population.
+    full = _restandardize(scored_vals, pd.Series([True] * 60))
+
+    # (b) collapsed coverage: same 60 scored values + 440 neutral zeros.
+    padded = pd.concat([scored_vals, pd.Series([0.0] * 440)], ignore_index=True)
+    mask = pd.Series([True] * 60 + [False] * 440)
+    collapsed = _restandardize(padded, mask)
+
+    # The scored names' re-standardized values are invariant to the padding.
+    np.testing.assert_allclose(collapsed.iloc[:60].to_numpy(),
+                               full.to_numpy(), atol=1e-9)
+
+    # Guard the guard: had we standardized against the whole zero-padded column,
+    # the scored names would have been amplified (std shrinks with the zeros). Prove
+    # the amplification is real and that the fix removes it (ratio ~1, not ~2.7).
+    naive = _restandardize(padded)                 # no mask -> old whole-column behaviour
+    amp = float(naive.iloc[:60].std(ddof=0) / collapsed.iloc[:60].std(ddof=0))
+    assert amp > 2.0, f"expected the old path to amplify, got {amp}x"
+
+
+def test_coverage_collapse_does_not_inflate_scored_composite():
+    """F1 end-to-end: a genuinely-scored name's composite contribution must not be
+    inflated just because most OTHER names lost fundamental coverage in a bucket.
+
+    Two universes with an IDENTICAL trend signal (fully covered in both) differ only
+    in quality coverage: one fully covered, one collapsed (most quality NaN -> neutral
+    0). The trend-driven ranking gap between the top and bottom momentum name must be
+    (near-)equal across the two — the collapsed-coverage quality bucket must not,
+    via amplification, distort the surviving buckets' relative weight."""
+    n = 60
+    df_full = _base_universe(n)
+    df_full["ret_12_1"] = list(np.linspace(1.0, 2.0, n))   # clean momentum gradient
+
+    df_collapsed = df_full.copy()
+    # Wipe quality inputs for all but 6 names -> ~10% coverage (the collapse).
+    q_cols = ["roe", "oper_margin_ttm", "fcf_margin_ttm", "roic"]
+    keep = df_collapsed.index[:6]
+    df_collapsed.loc[~df_collapsed.index.isin(keep), q_cols] = np.nan
+
+    a = build_scores(df_full).set_index("ticker")["composite_score"]
+    b = build_scores(df_collapsed).set_index("ticker")["composite_score"]
+
+    # Trend contribution (top minus bottom momentum) is identical in both universes
+    # in the FIXED engine (quality is neutral/constant on both ends). Under the old
+    # bug the collapsed quality bucket amplified and shifted the composite spread.
+    spread_full = a.max() - a.min()
+    spread_collapsed = b.max() - b.min()
+    assert abs(spread_full - spread_collapsed) < 0.05 * spread_full, (
+        f"coverage collapse moved the trend spread: {spread_full} vs {spread_collapsed}")
+
+
 def test_deep_invalid_config_falls_back(tmp_path):
     """A structurally-wrong config (mistyped sub-factor key) must fall back to the
     equal-weight default, not pass shallow validation and later KeyError."""

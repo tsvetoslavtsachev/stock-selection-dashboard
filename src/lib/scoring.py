@@ -111,15 +111,27 @@ def load_weights(path: Path = _CONFIG_PATH) -> dict:
     return _DEFAULT_WEIGHTS
 
 
-def _restandardize(s: pd.Series) -> pd.Series:
+def _restandardize(s: pd.Series, scored: pd.Series | None = None) -> pd.Series:
     """Re-standardize a bucket to unit variance so that equal composite weights
     mean equal INFLUENCE — a bucket of more-correlated inputs is otherwise more
     dispersed and silently dominates. A degenerate (zero-variance) bucket stays
-    neutral."""
-    sd = float(s.std(ddof=0))
+    neutral.
+
+    ``scored`` is the boolean mask of names that were genuinely scored (non-NaN
+    BEFORE the neutral-0 fill). The mean/std are computed on that sub-population
+    ONLY — otherwise the neutral zeros of the unscored names shrink the std, and
+    a fundamental-coverage collapse silently AMPLIFIES the scored names' influence
+    (a 60/500-coverage bucket blew up 2.7x). The zeros stay neutral (0 maps to a
+    small +offset only via the shared mean, negligible and correct). When the mask
+    is omitted (or empty) the whole series is used — back-compatible."""
+    ref = s if scored is None else s[scored]
+    ref = ref.dropna()
+    if len(ref) == 0:
+        return s * 0.0
+    sd = float(ref.std(ddof=0))
     if sd < 1e-9:
         return s * 0.0
-    return (s - s.mean()) / sd
+    return (s - ref.mean()) / sd
 
 
 def _safe_col(df: pd.DataFrame, col: str) -> pd.Series:
@@ -270,20 +282,27 @@ def build_scores(df: pd.DataFrame, weights: dict | None = None) -> pd.DataFrame:
     out["value_score"]   = _value_score(out, sub["value"])
     out["risk_score"]    = _risk_score(out, sub["risk"])
 
+    # Capture which names were GENUINELY scored (non-NaN) per bucket BEFORE the
+    # neutral-0 fill — the re-standardization below standardizes against this
+    # sub-population, not the zero-padded column (see _restandardize).
+    score_cols = ["trend_score", "quality_score", "value_score", "risk_score"]
+    scored_mask = {c: out[c].notna() for c in score_cols}
+
     # Neutral fill: a bucket that could not be scored (all inputs missing / below
     # min-coverage) sits at 0 — the sector-neutral mean — NOT a 0.5 that would
     # beat genuinely-scored stocks.
-    score_cols = ["trend_score", "quality_score", "value_score", "risk_score"]
     out[score_cols] = out[score_cols].fillna(0.0)
 
     # Composite = weighted sum of RE-STANDARDIZED buckets, so equal weights mean
-    # equal influence. The DISPLAYED bucket scores stay the interpretable sector-
-    # neutral z's (neutral == 0); the re-standardization is internal to the blend.
+    # equal influence. Each bucket is standardized against ONLY its scored names
+    # (scored_mask) so a coverage collapse does not amplify the scored contribution.
+    # The DISPLAYED bucket scores stay the interpretable sector-neutral z's
+    # (neutral == 0); the re-standardization is internal to the blend.
     out["composite_score"] = (
-        comp["trend"]   * _restandardize(out["trend_score"])
-        + comp["quality"] * _restandardize(out["quality_score"])
-        + comp["value"]   * _restandardize(out["value_score"])
-        + comp["risk"]    * _restandardize(out["risk_score"])
+        comp["trend"]   * _restandardize(out["trend_score"],   scored_mask["trend_score"])
+        + comp["quality"] * _restandardize(out["quality_score"], scored_mask["quality_score"])
+        + comp["value"]   * _restandardize(out["value_score"],   scored_mask["value_score"])
+        + comp["risk"]    * _restandardize(out["risk_score"],    scored_mask["risk_score"])
     )
 
     all_scores = score_cols + ["composite_score"]
