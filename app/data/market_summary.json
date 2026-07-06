@@ -1,15 +1,15 @@
 {
   "universe_size": 503,
-  "missing_price_count": 0,
+  "missing_price_count": 1,
   "partial_price_count": 1,
-  "top_symbol": "MO",
-  "top_score": 0.8117,
-  "top_sector": "Consumer Staples",
+  "top_symbol": "SNA",
+  "top_score": 1.1637,
+  "top_sector": "Industrials",
   "bottom_symbol": "NRG",
-  "bottom_score": 0.1535,
-  "median_composite": 0.4986,
-  "avg_composite": 0.5024,
-  "avg_pe": 25.5,
+  "bottom_score": -2.7034,
+  "median_composite": 0.017,
+  "avg_composite": -0.0,
+  "avg_pe": 26.0187,
   "avg_roe": 0.159,
   "sector_counts": {
     "Industrials": 79,
@@ -24,5 +24,15 @@
     "Communication Services": 23,
     "Energy": 22
   },
-  "as_of": "2026-07-03T23:26:03Z"
+  "as_of": "2026-07-06T15:29:54Z",
+  "data_asof": "2026-07-06",
+  "data_age_days": 0,
+  "data_fresh": true,
+  "stale_after_days": 5,
+  "composite_weights": {
+    "trend": 0.25,
+    "quality": 0.25,
+    "value": 0.25,
+    "risk": 0.25
+  }
 }
