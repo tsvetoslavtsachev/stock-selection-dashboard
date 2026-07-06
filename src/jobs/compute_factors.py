@@ -59,38 +59,55 @@ def _load_prices(symbol: str) -> pd.Series | None:
 
 def _price_features(series: pd.Series) -> dict[str, float]:
     """
-    Compute price-based features. A feature that cannot be computed from the
-    available history returns NaN (NOT 0.0) — a forced 0.0 return looks like a
-    flat year, and a forced 0.0 volatility looks like the *calmest* stock in the
-    universe, both of which silently distort the ranking. NaN instead flows into
-    the NaN-aware scoring (the factor reweights onto the components it can
-    compute, or falls back to neutral) and is flagged as a data-quality issue.
+    Compute price-based features from a DAILY total-return close series (INIT-22
+    P9 — sourced base-first from the price-archive). The series is resampled to
+    weekly (W-FRI) here so point-to-point returns and volatility follow the house
+    weekly convention (52 W-FRI returns, matching the beta convention used across
+    the dashboards); Etap B's 12-1 skip-month momentum reads the daily series
+    directly instead.
+
+    Momentum is 12-1 (skip-month) on the DAILY series: the return from ~12 months
+    ago (t-252) to ~1 month ago (t-21), skipping the most recent ~21 trading days
+    where the short-term reversal lives (Jegadeesh-Titman). A 13-week return is
+    retained on the weekly series for responsiveness; the old collinear 26w/52w
+    point-to-point returns are dropped. Volatility is 26-week (W-FRI).
+
+    A feature that cannot be computed from the available history returns NaN (NOT
+    0.0) — a forced 0.0 return looks like a flat year, and a forced 0.0 volatility
+    looks like the *calmest* stock in the universe, both of which silently distort
+    the ranking. NaN instead flows into the NaN-aware scoring and is flagged as a
+    data-quality issue.
     """
-    n = len(series)
+    wk = series.resample("W-FRI").last().dropna()
+    nwk = len(wk)
+    nd = len(series)
 
-    def safe_ret(weeks: int) -> float:
-        if n < weeks + 1:
-            return float("nan")
-        past = series.iloc[-(weeks + 1)]
-        current = series.iloc[-1]
-        if past == 0 or np.isnan(past):
-            return float("nan")
-        return (current / past) - 1.0
+    # 12-1 momentum on daily bars: price[t-21] / price[t-252] - 1. The last ~21
+    # trading days are excluded (no lookahead into the skipped window).
+    if nd >= 253:
+        past = series.iloc[-253]
+        recent = series.iloc[-22]
+        ret_12_1 = float("nan") if (past == 0 or np.isnan(past) or np.isnan(recent)) \
+            else (recent / past) - 1.0
+    else:
+        ret_12_1 = float("nan")
 
-    ret_13 = safe_ret(13)
-    ret_26 = safe_ret(26)
-    ret_52 = safe_ret(52)
+    # 13-week point-to-point on the weekly (W-FRI) series — responsiveness input.
+    if nwk >= 14:
+        past13 = wk.iloc[-14]
+        ret_13 = float("nan") if (past13 == 0 or np.isnan(past13)) else (wk.iloc[-1] / past13) - 1.0
+    else:
+        ret_13 = float("nan")
 
-    if n >= 27:
-        weekly_rets = np.log(series.iloc[-26:].values / series.iloc[-27:-1].values)
+    if nwk >= 27:
+        weekly_rets = np.log(wk.iloc[-26:].values / wk.iloc[-27:-1].values)
         vol = float(np.nanstd(weekly_rets) * np.sqrt(52))
     else:
         vol = float("nan")
 
     return {
+        "ret_12_1": round(ret_12_1, 6),
         "ret_13w": round(ret_13, 6),
-        "ret_26w": round(ret_26, 6),
-        "ret_52w": round(ret_52, 6),
         "volatility_26w": round(vol, 6),
     }
 
@@ -121,12 +138,17 @@ def run() -> pd.DataFrame:
         if prices is not None and len(prices) > 1:
             feats = _price_features(prices)
             record.update(feats)
+            # Date of the newest price bar actually used — the real data-recency
+            # signal (publish stamps its own run time, which is always "fresh"
+            # even when the fetch silently returned nothing new).
+            record["price_asof"] = prices.index[-1].strftime("%Y-%m-%d")
             n_missing = sum(1 for v in feats.values() if pd.isna(v))
             record["data_quality"] = "ok" if n_missing == 0 else "partial_prices"
         else:
             record.update(
-                {"ret_13w": np.nan, "ret_26w": np.nan, "ret_52w": np.nan, "volatility_26w": np.nan}
+                {"ret_12_1": np.nan, "ret_13w": np.nan, "volatility_26w": np.nan}
             )
+            record["price_asof"] = None
             record["data_quality"] = "missing_prices"
             logger.warning("[%s] No usable price history — flagged missing_prices", symbol)
 

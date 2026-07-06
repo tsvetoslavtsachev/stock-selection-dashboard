@@ -21,6 +21,7 @@ import math
 import pandas as pd
 
 from src.lib.io_utils import APP_DATA, DATA_PROCESSED, write_json
+from src.lib.scoring import load_weights
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,6 +33,41 @@ logger = logging.getLogger("publish_site_data")
 _RANKS_CSV = DATA_PROCESSED / "ranks.csv"
 _N_LEADERS = 10
 
+# Newest price bar older than this (calendar days) → data flagged not-fresh.
+# Tolerates a normal weekend/holiday gap on daily bars; the UI surfaces both the
+# exact `data_asof` date and this boolean so silent staleness is visible.
+_STALE_AFTER_DAYS = 5
+# Below this fraction of the universe carrying a real price bar, the data is
+# flagged not-fresh even if the newest bar is recent — a large partial outage
+# still degrades the ranking.
+_MIN_PRICE_COVERAGE = 0.90
+
+
+def _data_recency(df: pd.DataFrame) -> tuple[str | None, int | None, bool]:
+    """
+    Newest price bar date across the universe → (data_asof, age_days, fresh).
+
+    Measures ACTUAL data recency — the last observation the ranking is built on —
+    NOT publish time. A scheduled job that runs but silently fetches nothing new
+    keeps producing a fresh publish timestamp while the underlying bars go stale;
+    this metric exposes that gap.
+
+    A TOTAL price outage (no ``price_asof`` column, or every value NaN) returns
+    ``fresh=False`` with a null date — the freshness badge is a safety feature and
+    must fail LOUD in its worst case (reporting ``fresh=True`` on zero real bars
+    would defeat its whole purpose). The UI shows a NO-PRICE-DATA badge then.
+    """
+    if "price_asof" not in df.columns:
+        return None, None, False
+    asof_series = pd.to_datetime(df["price_asof"], errors="coerce")
+    asof = asof_series.max()
+    if pd.isna(asof):
+        return None, None, False
+    age = (datetime.datetime.now(datetime.timezone.utc).date() - asof.date()).days
+    coverage = float(asof_series.notna().mean())
+    fresh = (age <= _STALE_AFTER_DAYS) and (coverage >= _MIN_PRICE_COVERAGE)
+    return asof.strftime("%Y-%m-%d"), int(age), fresh
+
 # All columns to include in JSON output
 _META_COLS = ["ticker", "name", "sector", "data_quality"]
 
@@ -41,7 +77,7 @@ _SCORE_COLS = [
 ]
 
 _PRICE_COLS = [
-    "ret_13w", "ret_26w", "ret_52w", "volatility_26w",
+    "ret_12_1", "ret_13w", "volatility_26w",
 ]
 
 _FUNDAMENTAL_COLS = [
@@ -94,6 +130,7 @@ def run() -> None:
         df = df.sort_values("composite_score", ascending=False).reset_index(drop=True)
 
     as_of = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    data_asof, data_age_days, data_fresh = _data_recency(df)
 
     # ── ranked_stocks.json ──
     ranked = [_row_to_dict(row, rank=i + 1) for i, (_, row) in enumerate(df.iterrows())]
@@ -132,6 +169,17 @@ def run() -> None:
         "avg_roe": _clean(df["roe"].median()) if "roe" in df.columns else None,
         "sector_counts": sector_counts,
         "as_of": as_of,
+        "data_asof": data_asof,
+        "data_age_days": data_age_days,
+        "data_fresh": data_fresh,
+        # Publish the staleness threshold so the UI can recompute freshness
+        # client-side against TODAY (not just trust this frozen boolean) — a job
+        # that dies stops updating data_asof but the boolean would stay green.
+        # One source of truth for the threshold: this same constant.
+        "stale_after_days": _STALE_AFTER_DAYS,
+        # Live composite weights so the UI labels the factor contributions
+        # accurately (they follow config/scoring.yml, not a hard-coded default).
+        "composite_weights": load_weights().get("composite", {}),
     }
     write_json(summary, APP_DATA / "market_summary.json")
     logger.info("Wrote market_summary.json (top=%s)", summary["top_symbol"])

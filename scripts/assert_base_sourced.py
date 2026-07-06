@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""CI guard (INIT-22 P9): fail RED if stock-selection prices silently fell back to yfinance.
+
+Coverage-floor + allow-list (the P6-part-2 / macro-satellite cardinality pattern), adapted to this
+repo's STATIC S&P 500 universe (config/universe.csv) with the known archive quarantine gap (HON).
+The catastrophe this catches is a SILENT MASS fallback (e.g. the archive checkout failed -> the whole
+universe quietly reverted to un-audited yfinance). A handful of non-allow-listed fetches (a
+constituent whose px_* series is not yet registered) are WARNED, not failed. Run only when the read
+PATs are set (the workflow gates it); absent the secrets the yfinance fallback is legitimate and this
+is skipped.
+
+Symbols in price_source.json are the DOTTED universe form ("BRK.B"); the dot->dash translation to the
+archive/Yahoo form happens inside fetch_prices, so a correctly-translated class share is base-sourced
+and never appears here. Provenance only — units are pure USD (normalize_currency=False, a no-op).
+"""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+SOURCE = Path(__file__).resolve().parents[1] / "price_source.json"
+
+# Known, expected fetch fallback (NOT a silent regression): symbol whose px_* series is absent from
+# or quarantined in the archive catalog. Documented in the P9 mandate / P8b-HON-case.
+ALLOWLIST = {"HON"}  # Honeywell -- upstream yfinance lagged-split quarantine (P8b)
+
+FLOOR_FRAC = 0.90  # >= 90% of the symbols sourced this run must be base-sourced
+
+
+def main() -> int:
+    if not SOURCE.exists():
+        print(f"assert_base_sourced: {SOURCE} missing -- fetch_prices must run first",
+              file=sys.stderr)
+        return 1
+    payload = json.loads(SOURCE.read_text(encoding="utf-8"))
+    by_symbol = payload.get("by_symbol", {})
+    expected = int(payload.get("summary", {}).get("expected", 0))
+    if not by_symbol:
+        # Empty is NOT ok for this static ~503-symbol universe: it means the run
+        # sourced ZERO symbols (archive AND fallback both dead) -- a total outage
+        # that must fail RED, never pass green.
+        print("FAIL: price_source empty -- the run sourced ZERO symbols "
+              "(archive + fallback both failed).", file=sys.stderr)
+        return 1
+
+    base = sorted(t for t, s in by_symbol.items() if s == "base")
+    fetch = sorted(t for t, s in by_symbol.items() if s != "base")
+    covered = len(by_symbol)
+    base_frac = len(base) / covered if covered else 0.0
+    unexpected = [t for t in fetch if t not in ALLOWLIST]
+
+    # Cross-check breadth: a run that sourced only a slice of the expected universe
+    # (mass drop) must fail even if that slice is 100% base-sourced.
+    if expected and covered < 0.90 * expected:
+        print(f"FAIL: covered {covered} < 90% of expected {expected} -- a large "
+              "slice of the universe was dropped entirely.", file=sys.stderr)
+        return 1
+
+    print(f"assert_base_sourced: {len(base)}/{covered} base ({base_frac:.1%}); "
+          f"{len(fetch)} fetch ({len(unexpected)} unexpected, "
+          f"{len(fetch) - len(unexpected)} allow-listed).")
+    if unexpected:
+        print("  WARNING -- fetched (not allow-listed; check archive registration):", file=sys.stderr)
+        for t in unexpected:
+            print(f"    - {t}", file=sys.stderr)
+
+    if base_frac < FLOOR_FRAC:
+        print(f"FAIL: base fraction {base_frac:.1%} < floor {FLOOR_FRAC:.0%} -- the strangler "
+              "silently reverted to yfinance. Check the data-core/price-archive checkout + "
+              "PYTHONPATH + DATACORE_ROOT, and any per-symbol archive gap.", file=sys.stderr)
+        return 1
+
+    print(f"OK: base sourcing intact ({base_frac:.1%} base; {len(unexpected)} tolerated churn/gap).")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

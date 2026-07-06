@@ -39,7 +39,10 @@ pipeline:
   n_leaders: 10
 
 # ── Scoring weights ───────────────────────────────────────────────────────────
-# All weights within a group must sum to 1.0.
+# DEPRECATED / NOT READ. Since the INIT-22 M1 rework the live scoring weights live
+# in the COMMITTED config/scoring.yml (a public dashboard's production weights must
+# be in git, not this gitignored file). This block is kept only as historical
+# reference of the pre-rework composite; editing it changes nothing.
 scoring:
   composite:
     trend:    0.30

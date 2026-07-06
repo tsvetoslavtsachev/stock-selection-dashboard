@@ -39,12 +39,17 @@ def _to_yahoo_symbol(symbol: str) -> str:
 def get_price_history(
     symbol: str,
     period: str = "2y",
+    interval: str = "1wk",
     max_retries: int = 3,
     backoff_base: float = 2.0,
     _sleep: Callable[[float], None] = time.sleep,
 ) -> pd.DataFrame | None:
     """
-    Fetch weekly adjusted close prices for *symbol*, with retry + backoff.
+    Fetch adjusted close prices for *symbol* at *interval*, with retry + backoff.
+
+    ``interval`` is "1wk" by default (legacy weekly path); the price-archive
+    CLOSED fallback (fetch_prices) passes "1d" so a base miss is filled with
+    DAILY bars unit-consistent with the archive's daily total-return close.
 
     For an index constituent a missing price series is a *data error*, not a
     legitimate state (a genuinely new listing would not yet be in the index), so
@@ -77,7 +82,7 @@ def get_price_history(
     for attempt in range(attempts):
         try:
             ticker = yf.Ticker(yahoo_symbol)
-            hist = ticker.history(period=period, interval="1wk", auto_adjust=True)
+            hist = ticker.history(period=period, interval=interval, auto_adjust=True)
             if not hist.empty:
                 hist = hist[["Close"]].copy()
                 hist.index.name = "Date"
@@ -134,7 +139,12 @@ def get_fundamentals(symbol: str) -> dict[str, Any]:
         ticker = yf.Ticker(_to_yahoo_symbol(symbol))
         info = ticker.info or {}
 
-        result["pe_ratio"] = info.get("trailingPE") or info.get("forwardPE")
+        # Trailing P/E only — a SINGLE consistent earnings basis across the
+        # universe. Mixing trailing for some names and forward for others (the old
+        # `trailingPE or forwardPE`) compares two different definitions in one
+        # ranking. Negative-earnings names have no trailing P/E -> None -> the E/P
+        # yield is NaN and the value bucket reweights onto EV/EBITDA and P/B.
+        result["pe_ratio"] = info.get("trailingPE")
         result["pb_ratio"] = info.get("priceToBook")
         result["ev_ebitda"] = info.get("enterpriseToEbitda")
         result["ev_ebit"] = _safe_divide(

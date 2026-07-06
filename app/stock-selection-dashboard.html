@@ -556,6 +556,21 @@ tbody td:nth-child(4) { text-align: left; color: var(--text-secondary); font-siz
   }
   .panel-right.collapsed { max-height: 0; }
 }
+
+/* Legend — how to read the sector-neutral z-scores */
+.legend {
+  max-width: 1600px;
+  margin: 8px auto 28px;
+  padding: 12px 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.legend strong, .legend b { color: var(--text-primary, #c9d1d9); font-weight: 600; }
+.legend em { font-style: normal; color: var(--accent, #58a6ff); }
 </style>
 </head>
 <body>
@@ -627,9 +642,8 @@ tbody td:nth-child(4) { text-align: left; color: var(--text-secondary); font-siz
             <th data-col="quality_score">Quality</th>
             <th data-col="value_score">Value</th>
             <th data-col="risk_score">Risk</th>
+            <th data-col="ret_12_1">12-1 Mom</th>
             <th data-col="ret_13w">13W Ret</th>
-            <th data-col="ret_26w">26W Ret</th>
-            <th data-col="ret_52w">52W Ret</th>
             <th data-col="volatility_26w">Vol 26W</th>
             <th data-col="pe_ratio">P/E</th>
             <th data-col="pb_ratio">P/B</th>
@@ -665,6 +679,16 @@ tbody td:nth-child(4) { text-align: left; color: var(--text-secondary); font-siz
 
 </div>
 
+<footer class="legend">
+  <strong>Reading the scores.</strong>
+  Trend, Quality, Value, Risk and Composite are sector-neutral <em>z-scores</em> —
+  <b>higher is better</b> and <b>0 is the sector average</b> (roughly &minus;3 to +3, in
+  standard deviations). Risk follows the same direction: <b>higher = safer</b>
+  (lower volatility, debt and beta). Composite is the equal-weight mean of the four
+  factors, each first re-standardized so none dominates. Every stock is ranked
+  <em>within its GICS sector</em> — against its peers, not the whole market.
+</footer>
+
 <script>
 /* ═══════════════════════════════════════════════════════════════════════════
    APP STATE
@@ -675,6 +699,7 @@ let selectedTicker = null;
 let sortCol = 'composite_score';
 let sortAsc = false;
 let radarChartInstance = null;
+let compositeWeights = null;  // live composite factor weights (from market_summary.json / config)
 
 const DATA_BASE = 'data/';
 
@@ -689,21 +714,73 @@ async function init() {
     ]);
     allStocks = await stocksRes.json();
     const summary = await summaryRes.json();
+    compositeWeights = summary.composite_weights || null;
 
     renderKPIs(summary);
     buildSectorFilter();
     applyFilters();
     bindEvents();
 
-    if (summary.as_of) {
-      document.getElementById('asOf').textContent = 'Updated: ' + new Date(summary.as_of).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    }
+    renderFreshness(summary);
   } catch (err) {
     console.error('Failed to load data:', err);
     document.querySelector('.loading-text').textContent = 'Failed to load data. Run the pipeline first.';
     return;
   }
   document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FRESHNESS — publish time + data recency (newest price bar), with a visible
+   STALE badge so a silently frozen pipeline cannot masquerade as fresh.
+
+   The age is recomputed CLIENT-SIDE from data_asof against today: the published
+   data_fresh boolean is frozen at publish time, so a job that DIES (stops
+   committing) would keep a permanently green boolean while the bars rot. We show
+   STALE if EITHER the frozen boolean already says so OR the client-side age has
+   crossed the (published) threshold since publish. Server-side fields are kept.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const _DEFAULT_STALE_AFTER_DAYS = 5;  // fallback if the JSON predates stale_after_days
+
+function _clientAgeDays(dataAsof) {
+  // data_asof is a UTC calendar date ("YYYY-MM-DD"); compare in UTC so this
+  // matches the server's datetime.now(timezone.utc).date() arithmetic exactly.
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dataAsof);
+  if (!m) return null;
+  const asofUTC = Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  const now = new Date();
+  const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.floor((todayUTC - asofUTC) / 86400000);
+}
+
+function renderFreshness(s) {
+  const el = document.getElementById('asOf');
+  if (!el) return;
+  let txt = '';
+  if (s.as_of) {
+    txt = 'Updated: ' + new Date(s.as_of).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+  if (!s.data_asof) {
+    // Total price outage — the ranking is not backed by any fresh bar. The badge
+    // is gated on a truthy data_asof, so fresh=false alone would show nothing.
+    el.innerHTML = txt + (txt ? ' ' : '') + '<span style="background:#b91c1c;color:#fff;padding:1px 6px;border-radius:4px;font-weight:600;font-size:0.85em;">NO PRICE DATA</span>';
+    return;
+  }
+  txt += (txt ? '  ·  ' : '') + 'Data: ' + s.data_asof;
+
+  // Client-side recency: recompute age NOW so a dead workflow can't stay green.
+  const threshold = (typeof s.stale_after_days === 'number') ? s.stale_after_days : _DEFAULT_STALE_AFTER_DAYS;
+  const ageNow = _clientAgeDays(s.data_asof);
+  const staleNow = (ageNow != null) && (ageNow > threshold);
+
+  if (s.data_fresh === false || staleNow) {
+    // Prefer the live client-side age; fall back to the published one.
+    const shownAge = (ageNow != null) ? ageNow : s.data_age_days;
+    const age = (shownAge != null) ? ' (' + shownAge + 'd old)' : '';
+    el.innerHTML = txt + ' <span style="background:#b91c1c;color:#fff;padding:1px 6px;border-radius:4px;font-weight:600;font-size:0.85em;">STALE' + age + '</span>';
+    return;
+  }
+  el.textContent = txt;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -794,9 +871,8 @@ function renderTable() {
       tdNum(s.quality_score, 4) +
       tdNum(s.value_score, 4) +
       tdNum(s.risk_score, 4) +
+      tdPct(s.ret_12_1) +
       tdPct(s.ret_13w) +
-      tdPct(s.ret_26w) +
-      tdPct(s.ret_52w) +
       tdPct(s.volatility_26w, false) +
       tdNum(s.pe_ratio, 1) +
       tdNum(s.pb_ratio, 2) +
@@ -833,7 +909,10 @@ function tdPct(v, colored = true) {
 
 function tdScore(v) {
   if (v == null) return '<td class="val-na">—</td>';
-  const pct = Math.min(v * 100, 100);
+  // Composite is a sector-neutral z-score (~[-3, 3], centred at 0), NOT a [0,1]
+  // percentile — map z -> 0..100% bar width / red->green hue so a full green bar
+  // means a strongly above-average composite and a negative z shrinks toward red.
+  const pct = Math.max(0, Math.min((v + 3) / 6 * 100, 100));
   const hue = Math.round(pct * 1.2); // 0=red, 120=green
   const color = `hsl(${hue}, 65%, 50%)`;
   return `<td><span class="score-bar" style="width:${pct}%;background:${color}"></span>${v.toFixed(4)}</td>`;
@@ -890,6 +969,10 @@ function showDetail(stock) {
 
   // Scores
   const sc = document.getElementById('detailScores');
+  // Weights follow config/scoring.yml (published in market_summary); default is
+  // equal-weight. Labelled dynamically so they can never drift from the engine.
+  const w = compositeWeights || { trend: 0.25, quality: 0.25, value: 0.25, risk: 0.25 };
+  const wp = k => Math.round((w[k] ?? 0) * 100) + '%';
   sc.innerHTML = `
     <h3>Factor Scores</h3>
     <div class="score-grid">
@@ -898,19 +981,19 @@ function showDetail(stock) {
         <div class="score-val">${fmt(stock.composite_score, 4)}</div>
       </div>
       <div class="score-item">
-        <div class="score-label">Trend (30%)</div>
+        <div class="score-label">Trend (${wp('trend')})</div>
         <div class="score-val">${fmt(stock.trend_score, 4)}</div>
       </div>
       <div class="score-item">
-        <div class="score-label">Quality (30%)</div>
+        <div class="score-label">Quality (${wp('quality')})</div>
         <div class="score-val">${fmt(stock.quality_score, 4)}</div>
       </div>
       <div class="score-item">
-        <div class="score-label">Value (25%)</div>
+        <div class="score-label">Value (${wp('value')})</div>
         <div class="score-val">${fmt(stock.value_score, 4)}</div>
       </div>
       <div class="score-item">
-        <div class="score-label">Risk (15%)</div>
+        <div class="score-label">Risk (${wp('risk')})</div>
         <div class="score-val">${fmt(stock.risk_score, 4)}</div>
       </div>
     </div>
@@ -937,6 +1020,8 @@ function showDetail(stock) {
     { label: 'Gross Margin', val: pct(stock.gross_margin_ttm) },
     { label: 'FCF Margin', val: pct(stock.fcf_margin_ttm) },
     { label: 'Market Cap', val: fmtCap(stock.market_cap) },
+    { label: '12-1 Mom', val: pct(stock.ret_12_1) },
+    { label: '13W Ret', val: pct(stock.ret_13w) },
     { label: 'Volatility', val: pct(stock.volatility_26w) },
   ];
   fd.innerHTML = `
@@ -993,10 +1078,14 @@ function renderRadar(stock) {
       maintainAspectRatio: true,
       scales: {
         r: {
-          beginAtZero: true,
-          max: 1,
+          // Bucket scores are sector-neutral z-scores (~[-3, 3], 0 = the sector
+          // average), NOT [0,1] percentiles — a symmetric radial axis centred on 0
+          // so a factor above its sector average pushes the polygon out and a
+          // below-average one pulls it in toward the centre.
+          min: -3,
+          max: 3,
           ticks: {
-            stepSize: 0.25,
+            stepSize: 1,
             font: { size: 10, family: '-apple-system, BlinkMacSystemFont, sans-serif' },
             color: '#656d76',
             backdropColor: 'transparent',

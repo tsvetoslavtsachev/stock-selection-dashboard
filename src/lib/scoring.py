@@ -1,51 +1,137 @@
 """
-Factor scoring engine — S&P 500 edition.
+Factor scoring engine — S&P 500 edition (INIT-22 M1 rework).
 
-Factor weights
---------------
-Trend score   = 40% rank(ret_13w) + 30% rank(ret_26w) + 30% rank(ret_52w)
-Quality score = 30% rank(roe) + 25% rank(oper_margin_ttm) + 25% rank(fcf_margin_ttm) + 20% rank(roic)
-Value score   = 35% inv_rank(pe_ratio) + 30% inv_rank(ev_ebitda) + 20% inv_rank(pb_ratio) + 15% rank(dividend_yield)
-Risk score    = 50% inv_rank(volatility_26w) + 30% inv_rank(debt_equity) + 20% inv_rank(beta)
+Normalization
+-------------
+Every sub-factor is expressed as a *signal where higher = better*, then run
+through ONE uniform pipeline — there is exactly one place a direction is applied
+(``_signal``), which is what makes a stray sign flip catchable by a test:
 
-Composite     = 30% Trend + 30% Quality + 25% Value + 15% Risk
+  1. Direction   — risk inputs (vol / debt / beta) are negated (lower = safer =
+     better); value multiples are inverted to yields (E/P, EBITDA/EV, B/P) so a
+     cheaper multiple *and* a negative multiple (negative book / EBITDA = bad)
+     both fall out with the correct sign; everything else is already higher-better.
+  2. Gaussianize — inverse-normal (rankit) transform: percentile rank -> Phi^-1.
+     Robust to outliers like a rank, but z-scaled so the tails keep magnitude
+     (where the signal lives) and factors are averagable. Dissolves the winsorize
+     +/- MAD scaling question entirely.
+  3. Sector-neutralize — full within-GICS-sector standardization (de-mean AND
+     de-vol). The composite therefore carries NO sector bet ("most attractive
+     *within its sector*"); the sector tilt is a separate, later attribution.
+     Sectors with < 10 members fall back to universe standardization.
 
-All inputs are percentile-ranked [0,1] before weighting.
-
-NaN handling
+Missing data
 ------------
-Sub-factor inputs are often missing for individual stocks (e.g. roic/fcf
-approximations that fail, beta absent for some tickers, no P/E on negative
-earnings). Combining is NaN-aware *per stock*: a missing component is dropped
-and its weight redistributed across the components that ARE present, so one
-missing input no longer poisons the whole sub-score into NaN (which would then
-be filled with a misleading neutral 0.50). A stock only scores NaN when *every*
-component of a factor is missing. Because each factor's weights sum to 1.0, a
-stock with complete data scores identically to a plain weighted sum.
+Combining is coverage-aware per stock (``_combine_z``): a missing sub-factor is
+dropped and its weight redistributed across the present ones, but a bucket is
+only scored when >= 50% of its weight is present — below that it is NaN and
+falls back to the NEUTRAL centre 0 (post-neutralization, 0 is the sector mean),
+never a 0.5 that would beat real stocks. Present-but-partial buckets keep the
+honest weighted mean of the signals they have — there is no coverage shrink (it
+would softly re-introduce the very missing-data bias this rework removes, and is
+redundant with the unit-variance re-standardization below).
 
-`dividend_yield` is special: a stock that pays no dividend has a *zero* yield
-(a real value), not missing data — so it is filled with 0 before ranking,
-placing non-payers at the low end of the dividend axis instead of dropping them.
+Composite = weighted sum of the buckets after each is re-standardized to unit
+variance (so equal weight -> equal influence); the weights come from the committed
+``config/scoring.yml`` (equal-weight default, since M1 ships no backtest to justify
+anything else).
 """
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
+from statistics import NormalDist
+
 import numpy as np
 import pandas as pd
+import yaml
 
 logger = logging.getLogger(__name__)
 
-# ── Composite weights ────────────────────────────────────────────────────────
-TREND_W   = 0.30
-QUALITY_W = 0.30
-VALUE_W   = 0.25
-RISK_W    = 0.15
+_NORM = NormalDist(0.0, 1.0)
+
+_MIN_SECTOR_N = 10     # below this, a sector standardizes against the universe
+_MIN_COVERAGE = 0.50   # a bucket needs >= 50% of its weight present to score
+
+# Committed weights live in config/scoring.yml (a PUBLIC dashboard's production
+# weights must be in git, not the gitignored settings.yml). Default = equal weight
+# at BOTH levels — the honest no-information prior absent a validated IC (M1 ships
+# no backtest). load_weights() falls back to this if the file is absent/malformed.
+_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "scoring.yml"
+
+_DEFAULT_WEIGHTS: dict = {
+    "composite": {"trend": 0.25, "quality": 0.25, "value": 0.25, "risk": 0.25},
+    "subfactors": {
+        "trend":   {"ret_12_1": 0.5, "ret_13w": 0.5},
+        "quality": {"roe": 0.25, "oper_margin_ttm": 0.25, "fcf_margin_ttm": 0.25, "roic": 0.25},
+        "value":   {"pe_ratio": 0.25, "ev_ebitda": 0.25, "pb_ratio": 0.25, "dividend_yield": 0.25},
+        "risk":    {"volatility_26w": 1 / 3, "debt_equity": 1 / 3, "beta": 1 / 3},
+    },
+}
 
 
-def percentile_rank(series: pd.Series) -> pd.Series:
-    """Convert to percentile ranks [0, 1]. NaN stays NaN."""
-    return series.rank(method="average", ascending=True, pct=True, na_option="keep")
+def _valid_weights(data) -> bool:
+    """Deep-validate a loaded config against the default SCHEMA: the composite and
+    every sub-factor bucket must carry EXACTLY the expected keys with numeric
+    values. A shallow "has composite+subfactors" check would let a mistyped or
+    renamed sub-factor key (this file is hand-edited) pass, then crash build_scores
+    with a KeyError deep in the blend instead of falling back to equal weight."""
+    if not isinstance(data, dict):
+        return False
+    try:
+        if set(data.get("composite", {})) != set(_DEFAULT_WEIGHTS["composite"]):
+            return False
+        if set(data.get("subfactors", {})) != set(_DEFAULT_WEIGHTS["subfactors"]):
+            return False
+        for bucket, subs in _DEFAULT_WEIGHTS["subfactors"].items():
+            got = data["subfactors"][bucket]
+            if set(got) != set(subs):
+                return False
+            for v in got.values():
+                float(v)
+        for v in data["composite"].values():
+            float(v)
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return False
+    return True
+
+
+def load_weights(path: Path = _CONFIG_PATH) -> dict:
+    """Read committed scoring weights; fall back to the equal-weight default if the
+    file is missing or malformed (so a bare checkout — or a fat-fingered edit —
+    still scores sensibly instead of crashing the pipeline)."""
+    try:
+        data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        data = None
+    if _valid_weights(data):
+        return data
+    logger.warning("scoring.yml missing/malformed — using equal-weight defaults")
+    return _DEFAULT_WEIGHTS
+
+
+def _restandardize(s: pd.Series, scored: pd.Series | None = None) -> pd.Series:
+    """Re-standardize a bucket to unit variance so that equal composite weights
+    mean equal INFLUENCE — a bucket of more-correlated inputs is otherwise more
+    dispersed and silently dominates. A degenerate (zero-variance) bucket stays
+    neutral.
+
+    ``scored`` is the boolean mask of names that were genuinely scored (non-NaN
+    BEFORE the neutral-0 fill). The mean/std are computed on that sub-population
+    ONLY — otherwise the neutral zeros of the unscored names shrink the std, and
+    a fundamental-coverage collapse silently AMPLIFIES the scored names' influence
+    (a 60/500-coverage bucket blew up 2.7x). The zeros stay neutral (0 maps to a
+    small +offset only via the shared mean, negligible and correct). When the mask
+    is omitted (or empty) the whole series is used — back-compatible."""
+    ref = s if scored is None else s[scored]
+    ref = ref.dropna()
+    if len(ref) == 0:
+        return s * 0.0
+    sd = float(ref.std(ddof=0))
+    if sd < 1e-9:
+        return s * 0.0
+    return (s - ref.mean()) / sd
 
 
 def _safe_col(df: pd.DataFrame, col: str) -> pd.Series:
@@ -55,115 +141,168 @@ def _safe_col(df: pd.DataFrame, col: str) -> pd.Series:
     return pd.Series(np.nan, index=df.index)
 
 
-def _combine_ranks(components: list[tuple[float, pd.Series]], name: str) -> pd.Series:
-    """
-    Weighted blend of percentile-rank components, NaN-aware per row.
+# ── Normalization primitives ──────────────────────────────────────────────────
 
-    Each component is a ``(weight, ranked_series)`` pair. For every stock, any
-    component that is NaN — meaning the underlying input was missing — is dropped
-    and its weight is redistributed proportionally across the components that ARE
-    present for that stock. A stock therefore scores as long as *at least one*
-    component is present; only a stock missing *every* component yields NaN
-    (filled neutral downstream in :func:`build_scores`).
+def gaussian_rank(s: pd.Series) -> pd.Series:
+    """Inverse-normal (rankit) transform of a cross-section: percentile rank ->
+    Phi^-1((rank - 0.5) / n). Robust like a rank, z-scaled so tails carry
+    magnitude. NaN stays NaN; a constant / all-NaN column returns all-NaN or 0."""
+    r = s.rank(method="average", na_option="keep")
+    n = int(r.notna().sum())
+    if n == 0:
+        return pd.Series(np.nan, index=s.index, dtype=float)
+    p = (r - 0.5) / n
+    return p.map(lambda x: _NORM.inv_cdf(x) if pd.notna(x) else np.nan).astype(float)
 
-    When all components are present the denominator equals the sum of the base
-    weights (1.0 for every factor here), so the result is identical to a plain
-    weighted sum — rankings for complete-data stocks are unchanged.
+
+def sector_neutralize(z: pd.Series, sector: pd.Series, min_n: int = _MIN_SECTOR_N) -> pd.Series:
+    """Full within-sector standardization (de-mean + de-vol). Sectors with < min_n
+    scored members fall back to universe standardization; a degenerate (zero-var)
+    block is only de-meaned. NaN in z stays NaN."""
+    out = pd.Series(np.nan, index=z.index, dtype=float)
+    uni = z.dropna()
+    u_mean = float(uni.mean()) if len(uni) else 0.0
+    u_std = float(uni.std(ddof=0)) if len(uni) else 0.0
+    for _, members in z.groupby(sector, dropna=False).groups.items():
+        block = z.loc[members]
+        vals = block.dropna()
+        if len(vals) >= min_n and vals.std(ddof=0) > 1e-9:
+            out.loc[members] = (block - vals.mean()) / vals.std(ddof=0)
+        elif u_std > 1e-9:
+            out.loc[members] = (block - u_mean) / u_std
+        else:
+            out.loc[members] = block - (vals.mean() if len(vals) else 0.0)
+    return out
+
+
+def _combine_z(components: list[tuple[float, pd.Series]], name: str,
+               min_coverage: float = _MIN_COVERAGE) -> pd.Series:
+    """Coverage-aware weighted blend of sector-neutral z components.
+
+    A missing component is dropped and its weight redistributed across the present
+    ones. A stock scores only when the present weight is >= ``min_coverage`` of the
+    total; otherwise NaN (neutral 0 downstream). Present-but-partial names keep the
+    honest weighted mean of the signals they have — no coverage shrink (see the
+    inline note below on why an ad-hoc shrink is deliberately omitted).
     """
     index = components[0][1].index
-    numerator = pd.Series(0.0, index=index)
-    weight_present = pd.Series(0.0, index=index)
-    for weight, ranks in components:
-        # NaN ranks contribute 0 to the numerator and 0 to the weight total,
-        # so their weight is effectively handed to the present components.
-        numerator = numerator + ranks.fillna(0.0) * weight
-        weight_present = weight_present + weight * ranks.notna().astype(float)
-    score = numerator / weight_present.where(weight_present > 0, np.nan)
-    return score.rename(name)
+    num = pd.Series(0.0, index=index)
+    w_present = pd.Series(0.0, index=index)
+    total_w = sum(w for w, _ in components)
+    for weight, z in components:
+        num = num + z.fillna(0.0) * weight
+        w_present = w_present + weight * z.notna().astype(float)
+    cover = w_present / total_w
+    blend = num / w_present.where(w_present > 0, np.nan)
+    # Below the min-coverage floor the blend is dropped to NaN (-> neutral 0
+    # downstream). Present-but-partial names keep the honest weighted mean of the
+    # signals they DO have: an ad-hoc coverage shrink here would only pull them
+    # toward neutral (a soft return of the very bias this rewrite removes) and is
+    # anyway redundant with the unit-variance re-standardization in build_scores.
+    blend = blend.where(cover >= min_coverage, np.nan)
+    return blend.rename(name)
 
 
-# ── Sub-factor builders ──────────────────────────────────────────────────────
+# ── Sub-factor buckets ────────────────────────────────────────────────────────
 
-def _trend_score(df: pd.DataFrame) -> pd.Series:
-    r13 = percentile_rank(_safe_col(df, "ret_13w"))
-    r26 = percentile_rank(_safe_col(df, "ret_26w"))
-    r52 = percentile_rank(_safe_col(df, "ret_52w"))
-    return _combine_ranks([(0.40, r13), (0.30, r26), (0.30, r52)], "trend_score")
-
-
-def _quality_score(df: pd.DataFrame) -> pd.Series:
-    roe    = percentile_rank(_safe_col(df, "roe"))
-    opm    = percentile_rank(_safe_col(df, "oper_margin_ttm"))
-    fcfm   = percentile_rank(_safe_col(df, "fcf_margin_ttm"))
-    roic   = percentile_rank(_safe_col(df, "roic"))
-    # roic / fcf_margin frequently fail to compute → reweight onto present pieces.
-    return _combine_ranks(
-        [(0.30, roe), (0.25, opm), (0.25, fcfm), (0.20, roic)], "quality_score"
-    )
+def _signal(df: pd.DataFrame, col: str, direction: int, transform=None) -> pd.Series:
+    """One sub-factor as a sector-neutral 'higher = better' z. ``direction`` -1
+    negates a lower-is-better raw (risk); ``transform`` overrides direction for
+    value yields. This is the SINGLE place a sign is applied."""
+    raw = _safe_col(df, col)
+    if transform is not None:
+        raw = transform(raw)
+    elif direction < 0:
+        raw = -raw
+    z = gaussian_rank(raw)
+    return sector_neutralize(z, df.get("sector", pd.Series("", index=df.index)))
 
 
-def _value_score(df: pd.DataFrame) -> pd.Series:
-    # Lower PE/EV_EBITDA/PB = cheaper = higher score → invert. A genuinely
-    # missing multiple (e.g. negative earnings → no P/E) stays NaN and its
-    # weight is redistributed across the present multiples by _combine_ranks.
-    pe     = 1.0 - percentile_rank(_safe_col(df, "pe_ratio"))
-    ev_eb  = 1.0 - percentile_rank(_safe_col(df, "ev_ebitda"))
-    pb     = 1.0 - percentile_rank(_safe_col(df, "pb_ratio"))
-    # No dividend = zero yield (a real value), NOT missing data → fill 0 before
-    # ranking so non-payers rank at the low end instead of poisoning the score.
-    div_y  = percentile_rank(_safe_col(df, "dividend_yield").fillna(0.0))
-    return _combine_ranks(
-        [(0.35, pe), (0.30, ev_eb), (0.20, pb), (0.15, div_y)], "value_score"
-    )
+def _inv_yield(s: pd.Series) -> pd.Series:
+    """Multiple -> yield (1/x): a cheaper multiple gives a higher yield, and a
+    NEGATIVE multiple (negative earnings/book/EBITDA) gives a negative yield that
+    sorts to the bottom instead of masquerading as 'cheap'. x==0 -> NaN."""
+    return 1.0 / s.where(s != 0)
 
 
-def _risk_score(df: pd.DataFrame) -> pd.Series:
-    # Lower vol / debt / beta = less risky = higher score → invert. beta is
-    # often absent for some tickers → its weight is reweighted onto vol/debt.
-    vol    = 1.0 - percentile_rank(_safe_col(df, "volatility_26w"))
-    debt   = 1.0 - percentile_rank(_safe_col(df, "debt_equity"))
-    beta   = 1.0 - percentile_rank(_safe_col(df, "beta"))
-    return _combine_ranks([(0.50, vol), (0.30, debt), (0.20, beta)], "risk_score")
+def _trend_score(df: pd.DataFrame, w: dict) -> pd.Series:
+    return _combine_z([
+        (w["ret_12_1"], _signal(df, "ret_12_1", +1)),   # 12-1 skip-month momentum
+        (w["ret_13w"],  _signal(df, "ret_13w", +1)),    # 13-week return (responsiveness)
+    ], "trend_score")
+
+
+def _quality_score(df: pd.DataFrame, w: dict) -> pd.Series:
+    return _combine_z([
+        (w["roe"],             _signal(df, "roe", +1)),
+        (w["oper_margin_ttm"], _signal(df, "oper_margin_ttm", +1)),
+        (w["fcf_margin_ttm"],  _signal(df, "fcf_margin_ttm", +1)),
+        (w["roic"],            _signal(df, "roic", +1)),
+    ], "quality_score")
+
+
+def _value_score(df: pd.DataFrame, w: dict) -> pd.Series:
+    # Yield-form: higher = cheaper = better; negatives sort to the bottom.
+    return _combine_z([
+        (w["pe_ratio"],  _signal(df, "pe_ratio", +1, transform=_inv_yield)),
+        (w["ev_ebitda"], _signal(df, "ev_ebitda", +1, transform=_inv_yield)),
+        (w["pb_ratio"],  _signal(df, "pb_ratio", +1, transform=_inv_yield)),
+        # No dividend = zero yield (a real value), not missing data -> fill 0.
+        (w["dividend_yield"], _signal(df, "dividend_yield", +1, transform=lambda s: s.fillna(0.0))),
+    ], "value_score")
+
+
+def _risk_score(df: pd.DataFrame, w: dict) -> pd.Series:
+    # Lower vol / debt / beta = less risky = better -> direction -1.
+    return _combine_z([
+        (w["volatility_26w"], _signal(df, "volatility_26w", -1)),
+        (w["debt_equity"],    _signal(df, "debt_equity", -1)),
+        (w["beta"],           _signal(df, "beta", -1)),
+    ], "risk_score")
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def build_scores(df: pd.DataFrame) -> pd.DataFrame:
+def build_scores(df: pd.DataFrame, weights: dict | None = None) -> pd.DataFrame:
     """
-    Compute all factor scores and composite for the full universe.
+    Compute sector-neutral factor buckets and the composite for the full universe.
 
-    Parameters
-    ----------
-    df : pd.DataFrame with columns:
-        ticker, name, sector, cik,
-        ret_13w, ret_26w, ret_52w, volatility_26w,
-        pe_ratio, pb_ratio, ev_ebitda, ev_ebit,
-        roe, roic, debt_equity,
-        eps_ttm, dividend_yield,
-        revenue_growth_ttm, oper_margin_ttm, gross_margin_ttm,
-        fcf_margin_ttm, market_cap, beta
-
-    Returns
-    -------
-    pd.DataFrame — original + trend_score, quality_score, value_score,
-    risk_score, composite_score. Sorted by composite descending.
+    ``weights`` overrides the committed config/scoring.yml (equal-weight default).
+    Returns the input frame plus trend_score / quality_score / value_score /
+    risk_score (sector-neutral z's, mean ~0 per sector, neutral == 0) and
+    composite_score, sorted by composite descending.
     """
+    w = weights or load_weights()
+    sub = w["subfactors"]
+    comp = w["composite"]
     out = df.copy()
 
-    out["trend_score"]   = _trend_score(out)
-    out["quality_score"] = _quality_score(out)
-    out["value_score"]   = _value_score(out)
-    out["risk_score"]    = _risk_score(out)
+    out["trend_score"]   = _trend_score(out, sub["trend"])
+    out["quality_score"] = _quality_score(out, sub["quality"])
+    out["value_score"]   = _value_score(out, sub["value"])
+    out["risk_score"]    = _risk_score(out, sub["risk"])
 
-    # Fill NaN scores (e.g. all-NaN columns) with 0.5 (neutral)
+    # Capture which names were GENUINELY scored (non-NaN) per bucket BEFORE the
+    # neutral-0 fill — the re-standardization below standardizes against this
+    # sub-population, not the zero-padded column (see _restandardize).
     score_cols = ["trend_score", "quality_score", "value_score", "risk_score"]
-    out[score_cols] = out[score_cols].fillna(0.5)
+    scored_mask = {c: out[c].notna() for c in score_cols}
 
+    # Neutral fill: a bucket that could not be scored (all inputs missing / below
+    # min-coverage) sits at 0 — the sector-neutral mean — NOT a 0.5 that would
+    # beat genuinely-scored stocks.
+    out[score_cols] = out[score_cols].fillna(0.0)
+
+    # Composite = weighted sum of RE-STANDARDIZED buckets, so equal weights mean
+    # equal influence. Each bucket is standardized against ONLY its scored names
+    # (scored_mask) so a coverage collapse does not amplify the scored contribution.
+    # The DISPLAYED bucket scores stay the interpretable sector-neutral z's
+    # (neutral == 0); the re-standardization is internal to the blend.
     out["composite_score"] = (
-        TREND_W   * out["trend_score"]
-        + QUALITY_W * out["quality_score"]
-        + VALUE_W   * out["value_score"]
-        + RISK_W    * out["risk_score"]
+        comp["trend"]   * _restandardize(out["trend_score"],   scored_mask["trend_score"])
+        + comp["quality"] * _restandardize(out["quality_score"], scored_mask["quality_score"])
+        + comp["value"]   * _restandardize(out["value_score"],   scored_mask["value_score"])
+        + comp["risk"]    * _restandardize(out["risk_score"],    scored_mask["risk_score"])
     )
 
     all_scores = score_cols + ["composite_score"]
