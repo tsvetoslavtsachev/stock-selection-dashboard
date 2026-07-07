@@ -33,6 +33,41 @@ def _pct(x, nd=1):
     return f"{x * 100:.{nd}f}%"
 
 
+def _add_provenance(add, prov) -> None:
+    """Render the provenance pin (ritual §7 rule 2). No-op when ``prov`` is absent
+    (older ctx / doc build), so the report stays backward compatible."""
+    if not prov:
+        return
+    add("## Provenance — the inputs this run is a function of")
+    add("")
+    add("A bit-repro check is a comparison of THIS block, not archaeology through "
+        "transcripts. `config/universe.csv` is pinned by its **git blob id** "
+        "(`git rev-parse HEAD:config/universe.csv`), never a working-tree sha256 — "
+        "CRLF normalization makes a worktree hash unstable across checkouts; a "
+        "sha256 shows only when the file is uncommitted (the real repro-hole).")
+    add("")
+    dash = prov.get("dashboards_head", "UNKNOWN")
+    if prov.get("dashboards_dirty"):
+        dash += f" · DIRTY (tracked-diff {prov.get('dashboards_diff_hash') or 'n/a'})"
+    uni = f"blob {prov.get('universe_blob', 'UNKNOWN')}"
+    if prov.get("universe_uncommitted"):
+        wt = (prov.get("universe_worktree_sha256") or "n/a")[:16]
+        uni += f" · UNCOMMITTED (worktree sha256 {wt})"
+    edgar = prov.get("edgar_panel_sha256")
+    edgar_s = f"sha256 {edgar[:16]}" if edgar else "n/a (price-only run)"
+    add("| input | pin |")
+    add("|---|---|")
+    add(f"| generated | {prov.get('generated', 'n/a')} |")
+    add(f"| dashboards repo (this) | {dash} |")
+    add(f"| config/universe.csv | {uni} |")
+    add(f"| price-archive HEAD | {prov.get('price_archive_head', 'UNKNOWN')} |")
+    add(f"| collectors HEAD | {prov.get('collectors_head', 'UNKNOWN')} |")
+    add(f"| data-core HEAD | {prov.get('data_core_head', 'UNKNOWN')} |")
+    add(f"| edgar_pit_panel.csv.gz | {edgar_s} |")
+    add(f"| DATACORE_ROOT | {prov.get('datacore_root', 'n/a')} |")
+    add("")
+
+
 def build_report(ctx: dict) -> str:
     """Assemble the full REPORT.md from the run context ``ctx`` (see run_ic for the
     keys). Returns the markdown string."""
@@ -96,20 +131,28 @@ def build_report(ctx: dict) -> str:
     add(f"- **Market proxy for beta:** {ctx['market_proxy_label']}.")
     add("")
 
+    # ---- Provenance pin (ritual §7 rule 2) ------------------------------- #
+    _add_provenance(add, ctx.get("provenance"))
+
     # ---- IC tables ------------------------------------------------------- #
     add("## Information coefficient (Spearman, monthly)")
     add("")
-    add("Per factor × variant (raw / sector-neutral) × forward horizon. `t` is the "
-        "plain t-stat, `t_NW` the Newey-West (lag 3) autocorrelation-adjusted t. "
-        "`CI95` is the block-bootstrap (block=3, 2000 resamples, fixed seed) 95% CI "
-        "of the mean IC.")
+    add("Per factor × variant (raw / sector-neutral) × forward horizon. The "
+        "`membership` column is the filter convention (ritual §7 rule 3): this "
+        "table is **unfiltered** (today's constituents, every slice) — the "
+        "filtered comparison is the pre-inclusion-bias table below. Citing a "
+        "number from here without the `unfiltered` label is what let the anchor "
+        "incident happen. `t` is the plain t-stat, `t_NW` the Newey-West (lag 3) "
+        "autocorrelation-adjusted t. `CI95` is the block-bootstrap (block=3, 2000 "
+        "resamples, fixed seed) 95% CI of the mean IC.")
     add("")
-    add("| factor | variant | horizon | n | mean IC | std | t | t_NW | %pos | CI95 |")
-    add("|---|---|---|---:|---:|---:|---:|---:|---:|---|")
+    add("| factor | variant | membership | horizon | n | mean IC | std | t | t_NW | %pos | CI95 |")
+    add("|---|---|---|---|---:|---:|---:|---:|---:|---:|---|")
     for r in ctx["ic_rows"]:
         ci = r.get("ci")
         ci_s = f"[{_fmt(ci[0], 3)}, {_fmt(ci[1], 3)}]" if ci else "n/a"
-        add(f"| {r['factor']} | {r['variant']} | {r['horizon']}d | {r['n']} | "
+        add(f"| {r['factor']} | {r['variant']} | {r.get('membership', 'unfiltered')} | "
+            f"{r['horizon']}d | {r['n']} | "
             f"{_fmt(r['mean'])} | {_fmt(r['std'], 3)} | {_fmt(r['t'], 2)} | "
             f"{_fmt(r['t_nw'], 2)} | {_pct(r['pct_pos'] / 100 if r['pct_pos'] == r['pct_pos'] else None)} | {ci_s} |")
     add("")

@@ -42,7 +42,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from research.backtest import composites, forward, metrics, report, signals
+from research.backtest import composites, forward, metrics, provenance, report, signals
 from research.backtest.membership import load_membership
 from research.backtest.panel import load_panel, testable_rebalances
 
@@ -176,8 +176,11 @@ def run(with_fundamentals: bool = False) -> dict:
                 ic = _ic_series(sd, slices["fwd"], f, h)
                 summ = metrics.ic_summary(ic)
                 ci = metrics.block_bootstrap_ci(ic)
+                # This main IC table is computed WITHOUT the membership filter
+                # (eligible=None above) -- the ritual §7 rule 3 filter label. The
+                # filtered comparison lives only in the pre-inclusion-bias table.
                 ic_rows.append({"factor": f, "variant": variant, "horizon": h,
-                                "ci": ci, **summ})
+                                "membership": "unfiltered", "ci": ci, **summ})
                 for t, v in ic.items():
                     ic_ts_records.append({"date": t.date(), "factor": f,
                                           "variant": variant, "horizon": h, "ic": v})
@@ -231,11 +234,18 @@ def run(with_fundamentals: bool = False) -> dict:
     _write_csvs(ic_rows, ic_ts_records, quintile_spread_frames, regime_rows,
                 composite_rows, bias_rows)
 
+    # ---- Provenance pin (ritual §7 rule 2): the exact input identities this
+    # result is a function of, so a bit-repro check is a block comparison. ---- #
+    _repo_root = Path(__file__).resolve().parents[2]
+    _edgar_panel = Path(__file__).resolve().parents[1] / "data" / "edgar_pit_panel.csv.gz"
+    prov = provenance.gather(_repo_root, "config/universe.csv", _edgar_panel)
+
     # ---- Report ---------------------------------------------------------- #
     median_std = float(np.nanmedian([r["std"] for r in ic_rows if r["std"] == r["std"]]))
     median_ic_for_t2 = float(np.nanmedian(
         [r["ic_for_t2"] for r in ic_rows if r["ic_for_t2"] == r["ic_for_t2"]]))
     ctx = {
+        "provenance": prov,
         "panel_start": panel.close.index.min().date(),
         "panel_end": panel.close.index.max().date(),
         "n_bars": len(panel.close.index),
