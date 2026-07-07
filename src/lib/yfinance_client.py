@@ -111,17 +111,16 @@ def get_fundamentals(symbol: str) -> dict[str, Any]:
     Missing values are set to None (handled downstream).
 
     Metrics returned:
-        pe_ratio, pb_ratio, ev_ebitda, ev_ebit,
+        pe_ratio, pb_ratio, ev_ebitda,
         roe, roic, debt_equity,
         eps_ttm, dividend_yield,
         revenue_growth_ttm, oper_margin_ttm, gross_margin_ttm,
-        fcf_margin_ttm, market_cap, beta
+        fcf_margin_ttm, gpa, net_payout_yield, market_cap, beta
     """
     result: dict[str, Any] = {
         "pe_ratio": None,
         "pb_ratio": None,
         "ev_ebitda": None,
-        "ev_ebit": None,
         "roe": None,
         "roic": None,
         "debt_equity": None,
@@ -131,6 +130,8 @@ def get_fundamentals(symbol: str) -> dict[str, Any]:
         "oper_margin_ttm": None,
         "gross_margin_ttm": None,
         "fcf_margin_ttm": None,
+        "gpa": None,
+        "net_payout_yield": None,
         "market_cap": None,
         "beta": None,
     }
@@ -147,9 +148,6 @@ def get_fundamentals(symbol: str) -> dict[str, Any]:
         result["pe_ratio"] = info.get("trailingPE")
         result["pb_ratio"] = info.get("priceToBook")
         result["ev_ebitda"] = info.get("enterpriseToEbitda")
-        result["ev_ebit"] = _safe_divide(
-            info.get("enterpriseValue"), info.get("ebitda")
-        )
         result["roe"] = info.get("returnOnEquity")
         result["debt_equity"] = info.get("debtToEquity")
         if result["debt_equity"] is not None:
@@ -166,11 +164,20 @@ def get_fundamentals(symbol: str) -> dict[str, Any]:
         result["beta"] = info.get("beta")
 
         # ROIC = EBIT / (Total Assets - Current Liabilities)
-        # yfinance doesn't provide ROIC directly; approximate from financials
+        # yfinance doesn't provide ROIC directly; approximate from financials.
+        # M2: ROIC is no longer scored (noisy proxy) but is still fetched + shown.
         result["roic"] = _calc_roic(ticker)
 
         # FCF margin
         result["fcf_margin_ttm"] = _calc_fcf_margin(ticker, info)
+
+        # GP/A = gross profit (TTM) / total assets (latest quarter). Novy-Marx
+        # gross profitability -- scored in the M2 Quality bucket.
+        result["gpa"] = _calc_gpa(ticker, info)
+
+        # Net payout yield = (dividends + buybacks) TTM / market cap. Scored in
+        # the M2 Value bucket (supersedes the narrower dividend_yield).
+        result["net_payout_yield"] = _calc_net_payout_yield(ticker, info.get("marketCap"))
 
     except Exception as exc:
         logger.error("[%s] Fundamentals fetch failed: %s", symbol, exc)
@@ -178,10 +185,16 @@ def get_fundamentals(symbol: str) -> dict[str, Any]:
     return result
 
 
-def _safe_divide(a: float | None, b: float | None) -> float | None:
-    if a is None or b is None or b == 0:
-        return None
-    return a / b
+def _sum_ttm(cf: pd.DataFrame, keys: list[str]) -> float | None:
+    """TTM sum of the last 4 quarters for the FIRST present tag in ``keys`` (yfinance
+    tag names drift between releases, so a fallback ladder is safer than one name).
+    Returns None if no tag is present. Values are returned as-is (sign not touched)."""
+    for key in keys:
+        if key in cf.index:
+            vals = cf.loc[key].head(4)
+            if vals.notna().any():
+                return float(vals.sum())
+    return None
 
 
 def _calc_roic(ticker: yf.Ticker) -> float | None:
@@ -239,5 +252,72 @@ def _calc_fcf_margin(ticker: yf.Ticker, info: dict) -> float | None:
         if revenue and revenue > 0:
             return fcf_ttm / revenue
         return None
+    except Exception:
+        return None
+
+
+def _calc_gpa(ticker: yf.Ticker, info: dict) -> float | None:
+    """GP/A = gross profit (TTM) / total assets (latest quarter) -- Novy-Marx gross
+    profitability.
+
+    Gross profit: sum of the last 4 quarterly "Gross Profit" facts; if the income
+    statement lacks that tag, fall back to info totalRevenue * grossMargins (a TTM
+    proxy). Total assets: the latest quarter's balance-sheet figure (the same field
+    ROIC already reads). Returns None if either leg is unavailable / non-positive
+    assets. Financials naturally end up NaN (banks report no gross profit) --
+    the same coverage-aware handling as any missing fundamental."""
+    try:
+        gross_ttm: float | None = None
+        inc = ticker.quarterly_income_stmt
+        if inc is not None and not inc.empty and "Gross Profit" in inc.index:
+            gp = inc.loc["Gross Profit"].head(4)
+            if len(gp) >= 4 and gp.notna().all():
+                gross_ttm = float(gp.sum())
+        if gross_ttm is None:
+            revenue = info.get("totalRevenue")
+            gmargin = info.get("grossMargins")
+            if revenue and gmargin is not None:
+                gross_ttm = float(revenue) * float(gmargin)
+        if gross_ttm is None:
+            return None
+
+        bal = ticker.quarterly_balance_sheet
+        if bal is None or bal.empty or "Total Assets" not in bal.index:
+            return None
+        total_assets = bal.loc["Total Assets"].iloc[0]
+        if total_assets is None or pd.isna(total_assets) or total_assets <= 0:
+            return None
+        return gross_ttm / float(total_assets)
+    except Exception:
+        return None
+
+
+def _calc_net_payout_yield(ticker: yf.Ticker, market_cap: float | None) -> float | None:
+    """Net payout yield = (dividends paid + buybacks) TTM / market cap (Boudoukh
+    2007). Cash returned to shareholders as a fraction of market value.
+
+    Both legs come from the quarterly cash flow (last 4 quarters). yfinance reports
+    dividends and repurchases as NEGATIVE (cash outflow), so each leg is abs()'d to
+    a positive amount returned. Fallback tag ladders match _calc_fcf_margin's style.
+
+    Coverage rule (per mandate): a MISSING leg where the other is present is a real
+    ZERO (a non-payer / non-repurchaser is genuinely returning nothing that way);
+    only when BOTH legs are absent -- or market cap is unusable -- is the result
+    None (a true data gap that reweights in scoring)."""
+    try:
+        if not market_cap or market_cap <= 0:
+            return None
+        cf = ticker.quarterly_cashflow
+        if cf is None or cf.empty:
+            return None
+
+        div_ttm = _sum_ttm(cf, ["Cash Dividends Paid", "Common Stock Dividend Paid",
+                                 "Dividends Paid"])
+        buyback_ttm = _sum_ttm(cf, ["Repurchase Of Capital Stock", "Common Stock Payments",
+                                    "Repurchase Of Stock"])
+        if div_ttm is None and buyback_ttm is None:
+            return None
+        payout = abs(div_ttm or 0.0) + abs(buyback_ttm or 0.0)
+        return payout / float(market_cap)
     except Exception:
         return None

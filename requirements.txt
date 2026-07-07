@@ -6,7 +6,11 @@ pandas>=2.0.0          # DataFrames, CSV I/O, time-series manipulation
 numpy>=1.24.0          # Numeric operations, percentile ranking
 
 # ── Market data ──────────────────────────────────────────────────────────────
-yfinance>=0.2.30       # Yahoo Finance: prices + fundamentals (no API key needed)
+yfinance==1.3.0        # Yahoo Finance: prices + fundamentals (no API key needed).
+                       # PINNED: the dividendYield / cash-flow tag conventions are
+                       # version-dependent (yf 1.3.0 returns dividendYield in percent,
+                       # divided by 100 in yfinance_client). A silent minor bump can
+                       # flip the convention and corrupt the value bucket.
 
 # ── Storage ──────────────────────────────────────────────────────────────────
 pyarrow>=14.0.0        # Parquet read/write (optional; used if Parquet I/O is added)

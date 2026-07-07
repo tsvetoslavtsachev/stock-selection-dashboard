@@ -7,11 +7,11 @@ computes all factor inputs, calls the scoring engine, and writes:
     data/processed/ranks.csv
 
 Factor inputs:
-    Price-based: ret_13w, ret_26w, ret_52w, volatility_26w
-    Fundamentals: pe_ratio, pb_ratio, ev_ebitda, ev_ebit,
+    Price-based: ret_12_1, ret_13w, volatility_26w
+    Fundamentals: pe_ratio, pb_ratio, ev_ebitda,
                   roe, roic, debt_equity, eps_ttm, dividend_yield,
                   revenue_growth_ttm, oper_margin_ttm, gross_margin_ttm,
-                  fcf_margin_ttm, market_cap, beta
+                  fcf_margin_ttm, gpa, net_payout_yield, market_cap, beta
 
 Usage
 -----
@@ -112,6 +112,18 @@ def _price_features(series: pd.Series) -> dict[str, float]:
     }
 
 
+def _apply_sector_guards(record: dict) -> None:
+    """EV/EBITDA and GP/A are meaningless for banks/insurers (no operating EBITDA
+    and no cost-of-goods gross profit in the non-financial sense; the GP/A
+    fallback fills banks with a fictitious ~0 that would rank the whole group at
+    the bottom of a metric that does not apply to them), so neither is scored for
+    Financials -- set to NaN (sector comes from universe.csv). The value bucket
+    then reweights onto E/P + net payout, the quality bucket onto ROE + margins."""
+    if str(record.get("sector", "")) == "Financials":
+        record["ev_ebitda"] = np.nan
+        record["gpa"] = np.nan
+
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def run() -> pd.DataFrame:
@@ -155,6 +167,8 @@ def run() -> pd.DataFrame:
         # Fundamentals from yfinance
         fundamentals = get_fundamentals(symbol)
         record.update(fundamentals)
+
+        _apply_sector_guards(record)
 
         rows.append(record)
 

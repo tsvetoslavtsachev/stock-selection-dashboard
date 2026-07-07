@@ -1,10 +1,15 @@
 """
-Tests for the factor scoring engine (INIT-22 M1 rework).
+Tests for the factor scoring engine (INIT-22 M2 rework).
 
 Without a backtest there is no ground-truth ranking, so these tests pin the
-DIRECTION and INVARIANTS of the engine, not levels — which is exactly what
+DIRECTION and INVARIANTS of the engine, not levels -- which is exactly what
 catches a stray sign flip (the most likely bug) that a "sector mean ~ 0" or
 "equal weights -> mean" check would wave through green.
+
+M2 changes pinned here: Trend = ret_12_1 only; Quality adds gpa (ROIC unscored);
+Value = E/P + EV/EBITDA yield + net_payout_yield (P/B + dividend_yield unscored);
+Composite = Trend + Quality + Value with equal-contribution (ERC) weights (Risk is
+a separate lens, still scored but out of the composite).
 
 Run:  python -m pytest tests/test_scoring.py -v
 """
@@ -15,7 +20,9 @@ import numpy as np
 import pandas as pd
 
 from src.lib.scoring import (
+    _COMPOSITE_BUCKETS,
     _DEFAULT_WEIGHTS,
+    _erc_weights,
     _restandardize,
     build_scores,
     gaussian_rank,
@@ -28,7 +35,9 @@ N = 12
 
 def _base_universe(n: int = N, sector: str = "X") -> pd.DataFrame:
     """A single-sector universe with every factor CONSTANT (so each is neutral,
-    z=0) — a test overrides exactly one factor to isolate its direction."""
+    z=0) -- a test overrides exactly one factor to isolate its direction. Carries
+    both the SCORED inputs and the retained-but-unscored ones (ret_13w, pb_ratio,
+    dividend_yield, roic) so the engine reads exactly what the pipeline feeds it."""
     return pd.DataFrame({
         "ticker": [f"S{i:02d}" for i in range(n)],
         "name":   [f"S{i}" for i in range(n)],
@@ -36,9 +45,9 @@ def _base_universe(n: int = N, sector: str = "X") -> pd.DataFrame:
         "cik":    [""] * n,
         "ret_12_1": [0.10] * n, "ret_13w": [0.05] * n, "volatility_26w": [0.25] * n,
         "pe_ratio": [20.0] * n, "ev_ebitda": [10.0] * n, "pb_ratio": [3.0] * n,
-        "dividend_yield": [0.02] * n,
+        "dividend_yield": [0.02] * n, "net_payout_yield": [0.03] * n,
         "roe": [0.15] * n, "oper_margin_ttm": [0.20] * n, "fcf_margin_ttm": [0.15] * n,
-        "roic": [0.12] * n, "debt_equity": [0.50] * n, "beta": [1.00] * n,
+        "roic": [0.12] * n, "gpa": [0.30] * n, "debt_equity": [0.50] * n, "beta": [1.00] * n,
     })
 
 
@@ -46,7 +55,7 @@ def _mono(n: int = N) -> list[float]:
     return list(np.linspace(1.0, 2.0, n))
 
 
-# ── Direction golden — the sign-flip catchers ─────────────────────────────────
+# -- Direction golden -- the sign-flip catchers --------------------------------
 
 def test_cheaper_scores_higher_value():
     df = _base_universe()
@@ -54,6 +63,16 @@ def test_cheaper_scores_higher_value():
     v = build_scores(df).set_index("ticker")["value_score"]
     assert v.loc["S00"] == v.max()
     assert v.loc["S11"] == v.min()
+
+
+def test_higher_net_payout_scores_higher_value():
+    """net_payout_yield is a YIELD (higher = more cash returned = better): it is NOT
+    inverted. The most-returning name must top the value bucket."""
+    df = _base_universe()
+    df["net_payout_yield"] = _mono()               # S11 returns the most cash
+    v = build_scores(df).set_index("ticker")["value_score"]
+    assert v.loc["S11"] == v.max()
+    assert v.loc["S00"] == v.min()
 
 
 def test_lower_vol_scores_higher_risk():
@@ -81,6 +100,15 @@ def test_higher_momentum_scores_higher_trend():
     assert t.loc["S00"] == t.min()
 
 
+def test_ret_13w_does_not_move_trend_score():
+    """M2: ret_13w is no longer scored. Varying it must leave trend_score flat
+    (Trend = ret_12_1 only), even though the column is still present."""
+    df = _base_universe()
+    df["ret_13w"] = _mono()                        # would have tilted trend under M1
+    t = build_scores(df).set_index("ticker")["trend_score"]
+    assert t.abs().max() < 1e-9                     # all neutral -> ret_13w ignored
+
+
 def test_higher_roe_scores_higher_quality():
     df = _base_universe()
     df["roe"] = _mono()
@@ -89,46 +117,69 @@ def test_higher_roe_scores_higher_quality():
     assert q.loc["S00"] == q.min()
 
 
-def test_negative_book_and_expensive_rank_below_cheap_on_value():
-    """Yield-form fix, made DISCRIMINATING: 1/pb must order cheap > expensive >
-    negative-book. A no-inversion mutation (raw pb, higher=better) would instead
-    put the most EXPENSIVE (pb=100) at the TOP, so this fails without the fix; and
-    negative book (distress) must land at the very bottom, never 'cheapest'."""
+def test_higher_gpa_scores_higher_quality():
+    """GP/A is the new Quality input (Novy-Marx): higher = better."""
     df = _base_universe()
-    # S00..S09 normal (pb 2), S10 wildly expensive (pb 100), S11 negative book (-1).
-    df["pb_ratio"] = [2.0] * (N - 2) + [100.0, -1.0]
+    df["gpa"] = _mono()
+    q = build_scores(df).set_index("ticker")["quality_score"]
+    assert q.loc["S11"] == q.max()
+    assert q.loc["S00"] == q.min()
+
+
+def test_roic_does_not_move_quality_score():
+    """M2: ROIC is no longer scored. Varying it must leave quality_score flat."""
+    df = _base_universe()
+    df["roic"] = _mono()
+    q = build_scores(df).set_index("ticker")["quality_score"]
+    assert q.abs().max() < 1e-9
+
+
+def test_pb_and_dividend_yield_do_not_move_value_score():
+    """M2: P/B and dividend_yield are dropped from scoring (UI-only). Varying either
+    must NOT move value_score -- the audited P/B defect can no longer leak in."""
+    df = _base_universe()
+    df["pb_ratio"] = _mono()
+    df["dividend_yield"] = _mono()
     v = build_scores(df).set_index("ticker")["value_score"]
-    assert v.loc["S11"] == v.min()          # negative book = worst, not "cheapest"
+    assert v.abs().max() < 1e-9
+
+
+def test_negative_and_expensive_earnings_rank_below_cheap_on_value():
+    """Yield-form fix on E/P (the scored multiple), made DISCRIMINATING: 1/PE must
+    order cheap > expensive > negative-earnings. A no-inversion mutation (raw PE,
+    higher=better) would put the most EXPENSIVE at the TOP; negative earnings
+    (distress) must land at the very bottom, never 'cheapest'."""
+    df = _base_universe()
+    # S00..S09 normal (pe 15), S10 wildly expensive (pe 500), S11 negative (-20).
+    df["pe_ratio"] = [15.0] * (N - 2) + [500.0, -20.0]
+    v = build_scores(df).set_index("ticker")["value_score"]
+    assert v.loc["S11"] == v.min()          # negative earnings = worst, not "cheapest"
     assert v.loc["S10"] < v.loc["S00"]      # expensive ranks below cheap (discriminator)
 
 
-# ── Missing-data bias — the NaN-injection test ────────────────────────────────
+# -- Missing-data bias -- the NaN-injection test -------------------------------
 
-def test_missing_risk_data_does_not_improve_rank():
-    """Zeroing a genuinely-safe stock's risk bucket must LOWER its composite (to
-    neutral 0), never raise it — the exact bug the old neutral-0.5 fill created."""
+def test_missing_risk_data_is_neutral_zero():
+    """Zeroing a genuinely-safe stock's risk bucket must fall to neutral 0 -- the
+    exact bug the old neutral-0.5 fill created. (Risk is a lens now, out of the
+    composite, so we assert on the risk bucket directly.)"""
     df = _base_universe()
     df["volatility_26w"] = _mono()                  # S00 safest on risk
-    before = build_scores(df).set_index("ticker")
-    comp_before = before.loc["S00", "composite_score"]
-
     df2 = df.copy()
     mask = df2["ticker"] == "S00"
     df2.loc[mask, ["volatility_26w", "debt_equity", "beta"]] = np.nan
     after = build_scores(df2).set_index("ticker")
-
     assert after.loc["S00", "risk_score"] == 0.0    # neutral, not the safe extreme
-    assert after.loc["S00", "composite_score"] <= comp_before + 1e-9
 
 
 def test_all_trend_inputs_missing_is_neutral_zero_not_half():
     df = _base_universe()
-    df.loc[df["ticker"] == "S05", ["ret_12_1", "ret_13w"]] = np.nan
+    df.loc[df["ticker"] == "S05", ["ret_12_1"]] = np.nan
     t = build_scores(df).set_index("ticker")["trend_score"]
     assert t.loc["S05"] == 0.0                      # NOT the old 0.50
 
 
-# ── Sector neutralization — no sector tilt leaks ──────────────────────────────
+# -- Sector neutralization -- no sector tilt leaks -----------------------------
 
 def test_sector_neutralization_zeroes_each_sector_mean():
     """Two sectors at very different roe levels; after within-sector
@@ -139,9 +190,10 @@ def test_sector_neutralization_zeroes_each_sector_mean():
             rows.append({
                 "ticker": f"{sec}{i:02d}", "name": f"{sec}{i}", "sector": sec, "cik": "",
                 "ret_12_1": 0.1, "ret_13w": 0.05, "volatility_26w": 0.25,
-                "pe_ratio": 20.0, "ev_ebitda": 10.0, "pb_ratio": 3.0, "dividend_yield": 0.02,
+                "pe_ratio": 20.0, "ev_ebitda": 10.0, "pb_ratio": 3.0,
+                "dividend_yield": 0.02, "net_payout_yield": 0.03,
                 "roe": roe, "oper_margin_ttm": 0.2, "fcf_margin_ttm": 0.15,
-                "roic": 0.12, "debt_equity": 0.5, "beta": 1.0,
+                "roic": 0.12, "gpa": 0.30, "debt_equity": 0.5, "beta": 1.0,
             })
     scored = build_scores(pd.DataFrame(rows))
     for sec in ("A", "B"):
@@ -175,10 +227,10 @@ def test_small_sector_falls_back_to_universe_standardization():
     sector = pd.Series(["BIG"] * N + ["SMALL"] * 3)
     zn = sector_neutralize(gaussian_rank(vals), sector)
     small_mean = zn[(sector == "SMALL").to_numpy()].mean()
-    assert small_mean > 0.5, f"small-sector mean {small_mean} — was it de-meaned within-sector?"
+    assert small_mean > 0.5, f"small-sector mean {small_mean} -- was it de-meaned within-sector?"
 
 
-# ── Robustness ────────────────────────────────────────────────────────────────
+# -- Robustness ----------------------------------------------------------------
 
 def test_build_scores_is_deterministic():
     df = _base_universe()
@@ -189,7 +241,7 @@ def test_build_scores_is_deterministic():
 
 def test_all_nan_subfactor_reweights_not_crashes():
     df = _base_universe()
-    df["roic"] = np.nan          # a whole sub-factor column missing
+    df["gpa"] = np.nan           # a whole sub-factor column missing
     df["fcf_margin_ttm"] = np.nan
     df["roe"] = _mono()
     q = build_scores(df).set_index("ticker")["quality_score"]
@@ -211,46 +263,41 @@ def test_gaussian_rank_is_monotonic_and_finite():
     assert np.isfinite(z).all()          # no +/- inf at the tails
 
 
-# ── Composite: config-driven weights + bucket re-standardization (Etap D) ─────
+# -- Composite: 3-bucket ERC blend (M2) ----------------------------------------
 
 def _weights(composite: dict) -> dict:
     return {"composite": composite, "subfactors": _DEFAULT_WEIGHTS["subfactors"]}
 
 
+def test_composite_excludes_risk():
+    """M2 headline: Risk is NOT in the composite. Make Risk the ONLY varying bucket;
+    the composite (Trend+Quality+Value, all neutral) must stay flat regardless."""
+    df = _base_universe()
+    df["volatility_26w"] = _mono()         # only risk varies
+    scored = build_scores(df).set_index("ticker")
+    assert scored["risk_score"].abs().max() > 0.1     # risk IS scored + varies
+    assert scored["composite_score"].abs().max() < 1e-6  # composite ignores it
+
+
 def test_composite_weight_change_moves_the_ranking():
-    """Wiring proof: the weights genuinely drive the composite. A trend-only
-    weighting tops the highest-momentum stock; a risk-only weighting the safest."""
+    """Wiring proof: the composite weights genuinely drive the composite. A
+    trend-only weighting tops the highest-momentum stock; a value-only weighting the
+    cheapest."""
     df = _base_universe()
     df["ret_12_1"] = _mono()             # S11 highest momentum
-    df["volatility_26w"] = _mono()       # S00 safest
+    df["pe_ratio"] = _mono()             # S00 cheapest
     top_trend = build_scores(df, _weights(
-        {"trend": 1.0, "quality": 0.0, "value": 0.0, "risk": 0.0})).iloc[0]["ticker"]
-    top_risk = build_scores(df, _weights(
-        {"trend": 0.0, "quality": 0.0, "value": 0.0, "risk": 1.0})).iloc[0]["ticker"]
+        {"trend": 1.0, "quality": 0.0, "value": 0.0})).iloc[0]["ticker"]
+    top_value = build_scores(df, _weights(
+        {"trend": 0.0, "quality": 0.0, "value": 1.0})).iloc[0]["ticker"]
     assert top_trend == "S11"
-    assert top_risk == "S00"
-    assert top_trend != top_risk
-
-
-def test_equal_weight_composite_is_mean_of_restandardized_buckets():
-    """With equal weights the composite is exactly the mean of the four buckets
-    AFTER each is re-standardized — the check that makes 'equal weight' real."""
-    df = _base_universe()
-    df["pe_ratio"] = _mono()
-    df["roe"] = _mono()[::-1]
-    df["ret_12_1"] = _mono()
-    scored = build_scores(df)            # equal weights (default)
-    buckets = ["trend_score", "quality_score", "value_score", "risk_score"]
-    expected = sum(_restandardize(scored[b]) for b in buckets) / 4.0
-    assert np.allclose(scored["composite_score"].to_numpy(),
-                       expected.to_numpy(), atol=1e-3)
+    assert top_value == "S00"
+    assert top_trend != top_value
 
 
 def test_restandardize_is_unit_variance():
     """Direct, NON-tautological pin on the re-standardization: an input with std
-    far from 1 must come out at std ~1. (The composite test above computes its
-    expected via _restandardize too, so on its own an identity mutation would slip
-    through both sides — this catches it.)"""
+    far from 1 must come out at std ~1."""
     s = pd.Series(np.linspace(0.0, 10.0, 50))     # std ~= 2.96, nowhere near 1
     out = _restandardize(s)
     assert abs(out.std(ddof=0) - 1.0) < 1e-9
@@ -259,66 +306,135 @@ def test_restandardize_is_unit_variance():
 
 def test_restandardize_does_not_amplify_on_coverage_collapse():
     """F1 regression: re-standardizing against the ZERO-padded column (the old bug)
-    lets a fundamental-coverage collapse AMPLIFY the scored names — the neutral
-    zeros shrink the std, so dividing by it inflates the scored z's.
-
-    Model of the proof: the SAME 60 scored names, once inside a full 500-name
-    bucket and once padded out to 500 with neutral zeros (440 names lost fundamental
-    coverage). Standardized against the scored sub-population, the scored names must
-    keep the SAME re-standardized values in both — no amplification. Against the
-    whole zero-padded column they blow up by ~2.7x (the documented failure)."""
+    lets a fundamental-coverage collapse AMPLIFY the scored names -- the neutral
+    zeros shrink the std, so dividing by it inflates the scored z's."""
     rng = np.random.default_rng(0)
     scored_vals = pd.Series(rng.normal(0.0, 1.0, 60))
 
-    # (a) full coverage: all 60 are the population.
     full = _restandardize(scored_vals, pd.Series([True] * 60))
 
-    # (b) collapsed coverage: same 60 scored values + 440 neutral zeros.
     padded = pd.concat([scored_vals, pd.Series([0.0] * 440)], ignore_index=True)
     mask = pd.Series([True] * 60 + [False] * 440)
     collapsed = _restandardize(padded, mask)
 
-    # The scored names' re-standardized values are invariant to the padding.
     np.testing.assert_allclose(collapsed.iloc[:60].to_numpy(),
                                full.to_numpy(), atol=1e-9)
 
-    # Guard the guard: had we standardized against the whole zero-padded column,
-    # the scored names would have been amplified (std shrinks with the zeros). Prove
-    # the amplification is real and that the fix removes it (ratio ~1, not ~2.7).
     naive = _restandardize(padded)                 # no mask -> old whole-column behaviour
     amp = float(naive.iloc[:60].std(ddof=0) / collapsed.iloc[:60].std(ddof=0))
     assert amp > 2.0, f"expected the old path to amplify, got {amp}x"
 
 
-def test_coverage_collapse_does_not_inflate_scored_composite():
-    """F1 end-to-end: a genuinely-scored name's composite contribution must not be
-    inflated just because most OTHER names lost fundamental coverage in a bucket.
+# -- ERC composite solver (ported from research variance_share) ----------------
 
-    Two universes with an IDENTICAL trend signal (fully covered in both) differ only
-    in quality coverage: one fully covered, one collapsed (most quality NaN -> neutral
-    0). The trend-driven ranking gap between the top and bottom momentum name must be
-    (near-)equal across the two — the collapsed-coverage quality bucket must not,
-    via amplification, distort the surviving buckets' relative weight."""
-    n = 60
-    df_full = _base_universe(n)
-    df_full["ret_12_1"] = list(np.linspace(1.0, 2.0, n))   # clean momentum gradient
+def _corr_buckets(seed=7, n=800):
+    """Three correlated bucket columns with UNEQUAL dispersions -- so an equal-WEIGHT
+    blend would NOT have equal variance shares (the whole point of the ERC solve)."""
+    rng = np.random.default_rng(seed)
+    common = rng.normal(size=n)
+    trend = 0.8 * common + 0.6 * rng.normal(size=n)          # moderate vol
+    quality = 2.0 * (0.5 * common + 0.9 * rng.normal(size=n))  # high vol
+    value = 0.4 * (0.3 * common + 0.95 * rng.normal(size=n))  # low vol
+    return pd.DataFrame({"trend": trend, "quality": quality, "value": value})
 
-    df_collapsed = df_full.copy()
-    # Wipe quality inputs for all but 6 names -> ~10% coverage (the collapse).
-    q_cols = ["roe", "oper_margin_ttm", "fcf_margin_ttm", "roic"]
-    keep = df_collapsed.index[:6]
-    df_collapsed.loc[~df_collapsed.index.isin(keep), q_cols] = np.nan
 
-    a = build_scores(df_full).set_index("ticker")["composite_score"]
-    b = build_scores(df_collapsed).set_index("ticker")["composite_score"]
+def _variance_shares(bucket_df: pd.DataFrame, weights: dict) -> dict:
+    cols = list(bucket_df.columns)
+    w = np.array([weights[c] for c in cols])
+    S = bucket_df.cov().values
+    Sw = S @ w
+    total = float(w @ Sw)
+    return {c: float(w[i] * Sw[i] / total) for i, c in enumerate(cols)}
 
-    # Trend contribution (top minus bottom momentum) is identical in both universes
-    # in the FIXED engine (quality is neutral/constant on both ends). Under the old
-    # bug the collapsed quality bucket amplified and shifted the composite spread.
-    spread_full = a.max() - a.min()
-    spread_collapsed = b.max() - b.min()
-    assert abs(spread_full - spread_collapsed) < 0.05 * spread_full, (
-        f"coverage collapse moved the trend spread: {spread_full} vs {spread_collapsed}")
+
+def test_erc_weights_sum_to_one():
+    w = _erc_weights(_corr_buckets(), _DEFAULT_WEIGHTS["composite"])
+    assert abs(sum(w.values()) - 1.0) < 1e-9
+
+
+def test_erc_contributions_are_equal_and_sum_to_100pct():
+    """The load-bearing assertion (per the mandate): the ERC solution's variance
+    contributions sum to 100% AND are equal (spread ~ 0)."""
+    df = _corr_buckets()
+    w = _erc_weights(df, _DEFAULT_WEIGHTS["composite"])
+    contribs = _variance_shares(df, w)
+    assert abs(sum(contribs.values()) - 1.0) < 1e-9
+    vals = list(contribs.values())
+    k = len(vals)
+    assert max(vals) - min(vals) < 1e-4               # spread ~ 0
+    for v in vals:
+        assert abs(v - 1.0 / k) < 1e-4
+
+
+def test_erc_high_vol_bucket_gets_lower_weight():
+    """The high-dispersion bucket ('quality' here) must receive the SMALLEST weight
+    so its contribution is pulled down to parity."""
+    w = _erc_weights(_corr_buckets(), _DEFAULT_WEIGHTS["composite"])
+    assert w["quality"] < w["trend"]
+    assert w["quality"] < w["value"]
+
+
+def test_erc_degenerate_covariance_falls_back_to_nominal():
+    """A constant (zero-variance) bucket makes the covariance degenerate; the solver
+    must fall back to the nominal config weights renormalized over present buckets,
+    not divide by zero."""
+    df = pd.DataFrame({"trend": np.linspace(-1, 1, 50),
+                       "quality": [0.0] * 50,          # degenerate
+                       "value": np.linspace(1, -1, 50)})
+    w = _erc_weights(df, _DEFAULT_WEIGHTS["composite"])
+    assert abs(sum(w.values()) - 1.0) < 1e-9
+    # Fallback = the nominal config composite weights renormalized over the present
+    # buckets (the config thirds are 0.3334/0.3333/0.3333, not exactly 1/3).
+    nominal = _DEFAULT_WEIGHTS["composite"]
+    tot = sum(nominal.values())
+    for b in ("trend", "quality", "value"):
+        assert abs(w[b] - nominal[b] / tot) < 1e-9
+
+
+def test_erc_is_deterministic():
+    df = _corr_buckets()
+    assert _erc_weights(df, _DEFAULT_WEIGHTS["composite"]) == \
+        _erc_weights(df.copy(), _DEFAULT_WEIGHTS["composite"])
+
+
+def test_build_scores_composite_has_equal_bucket_contributions():
+    """End-to-end: on a realistic multi-sector universe the shipped composite carries
+    ~equal variance shares across Trend/Quality/Value (the ERC promise, in situ)."""
+    rng = np.random.default_rng(3)
+    n = 220
+    rows = []
+    sectors = ["Alpha", "Beta", "Gamma", "Delta"]
+    for i in range(n):
+        rows.append({
+            "ticker": f"T{i:03d}", "name": f"T{i}", "sector": sectors[i % 4], "cik": "",
+            "ret_12_1": rng.normal(), "ret_13w": rng.normal(),
+            "volatility_26w": abs(rng.normal()) + 0.1,
+            "pe_ratio": abs(rng.normal()) * 10 + 5, "ev_ebitda": abs(rng.normal()) * 8 + 4,
+            "pb_ratio": abs(rng.normal()) * 3 + 1, "dividend_yield": abs(rng.normal()) * 0.02,
+            "net_payout_yield": rng.normal() * 0.03,
+            "roe": rng.normal() * 0.1, "oper_margin_ttm": rng.normal() * 0.1,
+            "fcf_margin_ttm": rng.normal() * 0.1, "roic": rng.normal() * 0.1,
+            "gpa": abs(rng.normal()) * 0.3, "debt_equity": abs(rng.normal()),
+            "beta": abs(rng.normal()) + 0.5,
+        })
+    scored = build_scores(pd.DataFrame(rows))
+    buckets = pd.DataFrame({b: _restandardize(scored[f"{b}_score"]) for b in _COMPOSITE_BUCKETS})
+    w = _erc_weights(buckets, _DEFAULT_WEIGHTS["composite"])
+    shares = _variance_shares(buckets, w)
+    assert max(shares.values()) - min(shares.values()) < 1e-3
+
+
+# -- Config schema validation --------------------------------------------------
+
+def test_shipped_config_is_valid_and_loads():
+    """The committed config/scoring.yml must pass deep validation (so the pipeline
+    uses IT, not the fallback) and match the M2 schema."""
+    w = load_weights()
+    assert set(w["composite"]) == {"trend", "quality", "value"}
+    assert set(w["subfactors"]) == {"trend", "quality", "value", "risk"}
+    assert set(w["subfactors"]["value"]) == {"pe_ratio", "ev_ebitda", "net_payout_yield"}
+    assert set(w["subfactors"]["quality"]) == {"roe", "oper_margin_ttm", "fcf_margin_ttm", "gpa"}
+    assert set(w["subfactors"]["trend"]) == {"ret_12_1"}
 
 
 def test_deep_invalid_config_falls_back(tmp_path):
@@ -326,12 +442,28 @@ def test_deep_invalid_config_falls_back(tmp_path):
     equal-weight default, not pass shallow validation and later KeyError."""
     bad = tmp_path / "scoring.yml"
     bad.write_text(
-        "composite: {trend: 0.25, quality: 0.25, value: 0.25, risk: 0.25}\n"
+        "composite: {trend: 0.3334, quality: 0.3333, value: 0.3333}\n"
         "subfactors:\n"
-        "  trend: {ret_12_1: 0.5, ret_13w: 0.5}\n"
-        "  quality: {roe: 0.25, oper_margin_ttm: 0.25, fcf_margin_ttm: 0.25, roic: 0.25}\n"
-        "  value: {pe_ratio: 0.25, ev_ebitda: 0.25, pb_ratio: 0.25, dividend_yield: 0.25}\n"
+        "  trend: {ret_12_1: 1.0}\n"
+        "  quality: {roe: 0.25, oper_margin_ttm: 0.25, fcf_margin_ttm: 0.25, gpa: 0.25}\n"
+        "  value: {pe_ratio: 0.34, ev_ebitda: 0.33, net_payout_yield: 0.33}\n"
         "  risk: {volatility_26w: 0.34, debt_TYPO: 0.33, beta: 0.33}\n",  # debt_equity mistyped
+        encoding="utf-8")
+    assert load_weights(bad) == _DEFAULT_WEIGHTS
+
+
+def test_config_with_risk_in_composite_is_rejected(tmp_path):
+    """A config that leaves the old 4-key composite (risk still in the sum) must NOT
+    validate against the M2 schema -- it falls back rather than silently scoring the
+    old way."""
+    bad = tmp_path / "scoring.yml"
+    bad.write_text(
+        "composite: {trend: 0.25, quality: 0.25, value: 0.25, risk: 0.25}\n"  # risk in composite
+        "subfactors:\n"
+        "  trend: {ret_12_1: 1.0}\n"
+        "  quality: {roe: 0.25, oper_margin_ttm: 0.25, fcf_margin_ttm: 0.25, gpa: 0.25}\n"
+        "  value: {pe_ratio: 0.34, ev_ebitda: 0.33, net_payout_yield: 0.33}\n"
+        "  risk: {volatility_26w: 0.34, debt_equity: 0.33, beta: 0.33}\n",
         encoding="utf-8")
     assert load_weights(bad) == _DEFAULT_WEIGHTS
 

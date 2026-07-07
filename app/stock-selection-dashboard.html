@@ -672,6 +672,9 @@ tbody td:nth-child(4) { text-align: left; color: var(--text-secondary); font-siz
         <div class="radar-container">
           <canvas id="radarChart"></canvas>
         </div>
+        <div style="font-size:10px;color:var(--text-muted);text-align:center;margin-top:6px;">
+          Composite = Trend + Quality + Value &middot; Risk is a separate regime lens
+        </div>
       </div>
       <div class="detail-fundamentals" id="detailFundamentals"></div>
     </div>
@@ -683,10 +686,13 @@ tbody td:nth-child(4) { text-align: left; color: var(--text-secondary); font-siz
   <strong>Reading the scores.</strong>
   Trend, Quality, Value, Risk and Composite are sector-neutral <em>z-scores</em> —
   <b>higher is better</b> and <b>0 is the sector average</b> (roughly &minus;3 to +3, in
-  standard deviations). Risk follows the same direction: <b>higher = safer</b>
-  (lower volatility, debt and beta). Composite is the equal-weight mean of the four
-  factors, each first re-standardized so none dominates. Every stock is ranked
-  <em>within its GICS sector</em> — against its peers, not the whole market.
+  standard deviations). <b>Composite = Trend + Quality + Value</b>: each bucket is
+  re-standardized, then the three are blended with <em>equal-contribution</em> weights
+  so every bucket carries an equal share of the composite variance &mdash; no bucket
+  silently dominates. <b>Risk is a separate regime lens</b> (higher = safer: lower
+  volatility, debt and beta), scored and shown but <b>not part of the composite</b>.
+  Every stock is ranked <em>within its GICS sector</em> &mdash; against its peers, not the
+  whole market.
 </footer>
 
 <script>
@@ -969,15 +975,17 @@ function showDetail(stock) {
 
   // Scores
   const sc = document.getElementById('detailScores');
-  // Weights follow config/scoring.yml (published in market_summary); default is
-  // equal-weight. Labelled dynamically so they can never drift from the engine.
-  const w = compositeWeights || { trend: 0.25, quality: 0.25, value: 0.25, risk: 0.25 };
+  // Composite = Trend + Quality + Value (M2). Weights follow config/scoring.yml
+  // (published in market_summary) -- the equal-contribution shares -- so the labels
+  // can never drift from the engine. Risk is a separate regime lens, NOT in the
+  // composite, so it carries no composite weight.
+  const w = compositeWeights || { trend: 0.3333, quality: 0.3333, value: 0.3333 };
   const wp = k => Math.round((w[k] ?? 0) * 100) + '%';
   sc.innerHTML = `
     <h3>Factor Scores</h3>
     <div class="score-grid">
       <div class="score-item composite">
-        <div class="score-label">Composite</div>
+        <div class="score-label">Composite (Trend + Quality + Value)</div>
         <div class="score-val">${fmt(stock.composite_score, 4)}</div>
       </div>
       <div class="score-item">
@@ -993,7 +1001,7 @@ function showDetail(stock) {
         <div class="score-val">${fmt(stock.value_score, 4)}</div>
       </div>
       <div class="score-item">
-        <div class="score-label">Risk (${wp('risk')})</div>
+        <div class="score-label">Risk (regime lens)</div>
         <div class="score-val">${fmt(stock.risk_score, 4)}</div>
       </div>
     </div>
@@ -1004,13 +1012,17 @@ function showDetail(stock) {
 
   // Fundamentals
   const fd = document.getElementById('detailFundamentals');
+  // Fundamentals shown in full. Scored inputs and unscored-but-displayed inputs
+  // (P/B, ROIC, Div Yield, 13W Ret) both appear here; the scored set drives the
+  // buckets, the rest are context (see the score-reading legend + Factor Scores).
   const items = [
     { label: 'P/E Ratio', val: fmt(stock.pe_ratio, 1) },
     { label: 'P/B Ratio', val: fmt(stock.pb_ratio, 2) },
     { label: 'EV/EBITDA', val: fmt(stock.ev_ebitda, 1) },
-    { label: 'EV/EBIT', val: fmt(stock.ev_ebit, 1) },
+    { label: 'Net Payout Yld', val: pct(stock.net_payout_yield) },
     { label: 'ROE', val: pct(stock.roe) },
     { label: 'ROIC', val: pct(stock.roic) },
+    { label: 'GP / Assets', val: fmt(stock.gpa, 2) },
     { label: 'Debt/Equity', val: fmt(stock.debt_equity, 2) },
     { label: 'Beta', val: fmt(stock.beta, 2) },
     { label: 'EPS (TTM)', val: fmt(stock.eps_ttm, 2) },
@@ -1055,7 +1067,9 @@ function renderRadar(stock) {
   radarChartInstance = new Chart(ctx, {
     type: 'radar',
     data: {
-      labels: ['Trend', 'Quality', 'Value', 'Risk'],
+      // Trend/Quality/Value are the composite drivers; Risk is the separate regime
+      // lens (kept on the profile so the reader sees it, labelled to distinguish it).
+      labels: ['Trend', 'Quality', 'Value', 'Risk (lens)'],
       datasets: [{
         label: stock.ticker,
         data: [

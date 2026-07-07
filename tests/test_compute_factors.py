@@ -78,10 +78,12 @@ def _universe_with_missing_price_stock() -> pd.DataFrame:
             "ev_ebitda":      [8.0, 9.0, 10.0, 11.0, 9.5],
             "pb_ratio":       [2.0, 2.5, 3.0, 3.5, 2.8],
             "dividend_yield": [0.02] * 5,
+            "net_payout_yield":[0.03] * 5,
             "roe":            [0.15] * 5,
             "oper_margin_ttm":[0.20] * 5,
             "fcf_margin_ttm": [0.15] * 5,
             "roic":           [0.12] * 5,
+            "gpa":            [0.30] * 5,
             # A also has the lowest debt & beta → unambiguously the safest stock.
             "debt_equity":    [0.20, 0.60, 0.70, 0.80, 0.90],
             "beta":           [0.80, 1.10, 1.20, 1.30, 1.40],
@@ -101,6 +103,22 @@ def test_missing_prices_do_not_make_stock_look_safest():
     assert scored["risk_score"].idxmax() == "A"
     # And NODATA's risk is not the fake "calmest" extreme it used to be.
     assert scored.loc["NODATA", "risk_score"] < scored.loc["A", "risk_score"]
+
+
+def test_sector_guards_null_ev_ebitda_and_gpa_for_financials():
+    """Financials must not carry EV/EBITDA (no operating EBITDA) or GP/A (the
+    fallback fills banks with a fictitious ~0 gross profit) into scoring — both
+    NaN, so the buckets reweight onto metrics that do apply to them."""
+    from src.jobs.compute_factors import _apply_sector_guards
+
+    bank = {"sector": "Financials", "ev_ebitda": 9.5, "gpa": 0.001, "roe": 0.12}
+    _apply_sector_guards(bank)
+    assert np.isnan(bank["ev_ebitda"]) and np.isnan(bank["gpa"])
+    assert bank["roe"] == 0.12  # untouched
+
+    tech = {"sector": "Information Technology", "ev_ebitda": 15.0, "gpa": 0.45}
+    _apply_sector_guards(tech)
+    assert tech["ev_ebitda"] == 15.0 and tech["gpa"] == 0.45
 
 
 def test_missing_prices_trend_falls_back_to_neutral():

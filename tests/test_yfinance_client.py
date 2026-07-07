@@ -11,6 +11,7 @@ Run:  python -m pytest tests/test_yfinance_client.py -v
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from src.lib import yfinance_client
@@ -169,4 +170,82 @@ def test_plain_ticker_reaches_yahoo_unchanged(monkeypatch):
 
     yfinance_client.get_price_history("AAPL", _sleep=lambda _s: None)
 
+    assert seen == ["AAPL"]
+
+
+# --- New M2 fundamentals: GP/A + net payout yield (synthetic) ----------------
+
+class _FakeFundTicker:
+    """A stand-in yf.Ticker exposing crafted quarterly statements for the pure
+    GP/A and net-payout formulas (no network). Each statement is a DataFrame whose
+    INDEX is the tag name and whose columns are the (newest-first) quarters, exactly
+    as yfinance returns them."""
+
+    def __init__(self, income=None, balance=None, cashflow=None):
+        self.quarterly_income_stmt = income if income is not None else pd.DataFrame()
+        self.quarterly_balance_sheet = balance if balance is not None else pd.DataFrame()
+        self.quarterly_cashflow = cashflow if cashflow is not None else pd.DataFrame()
+
+
+def _row(tag: str, values: list[float]) -> pd.DataFrame:
+    return pd.DataFrame({f"q{i}": [v] for i, v in enumerate(values)}, index=[tag])
+
+
+def test_calc_gpa_from_quarterly_gross_profit():
+    """GP/A = sum(4 quarterly Gross Profit) / latest Total Assets."""
+    income = _row("Gross Profit", [50.0, 40.0, 30.0, 20.0])          # TTM = 140
+    balance = _row("Total Assets", [700.0, 690.0])                    # latest = 700
+    gpa = yfinance_client._calc_gpa(_FakeFundTicker(income=income, balance=balance), {})
+    assert np.isclose(gpa, 140.0 / 700.0)
+
+
+def test_calc_gpa_falls_back_to_revenue_times_margin():
+    """No Gross Profit tag -> info totalRevenue * grossMargins is the TTM proxy."""
+    balance = _row("Total Assets", [1000.0])
+    info = {"totalRevenue": 400.0, "grossMargins": 0.5}              # GP proxy = 200
+    gpa = yfinance_client._calc_gpa(_FakeFundTicker(balance=balance), info)
+    assert np.isclose(gpa, 200.0 / 1000.0)
+
+
+def test_calc_gpa_none_without_assets():
+    income = _row("Gross Profit", [50.0, 40.0, 30.0, 20.0])
+    assert yfinance_client._calc_gpa(_FakeFundTicker(income=income), {}) is None
+
+
+def test_net_payout_sums_dividends_and_buybacks_absolute():
+    """Both legs are reported NEGATIVE (outflow); the yield uses their absolute sum
+    over market cap. (10+10+10+10 div) + (20+20+20+20 buyback) = 120 / 1000 = 12%."""
+    cf = pd.concat([
+        _row("Cash Dividends Paid", [-10.0, -10.0, -10.0, -10.0]),
+        _row("Repurchase Of Capital Stock", [-20.0, -20.0, -20.0, -20.0]),
+    ])
+    y = yfinance_client._calc_net_payout_yield(_FakeFundTicker(cashflow=cf), 1000.0)
+    assert np.isclose(y, 120.0 / 1000.0)
+
+
+def test_net_payout_missing_one_leg_is_zero_for_that_leg():
+    """A non-repurchaser (no buyback tag) is a real 0 for buybacks, not missing:
+    the yield is dividends-only, not None."""
+    cf = _row("Cash Dividends Paid", [-5.0, -5.0, -5.0, -5.0])       # 20 total
+    y = yfinance_client._calc_net_payout_yield(_FakeFundTicker(cashflow=cf), 400.0)
+    assert np.isclose(y, 20.0 / 400.0)
+
+
+def test_net_payout_none_when_both_legs_absent():
+    """Neither dividends nor buybacks known -> a true data gap -> None (reweights)."""
+    cf = _row("Some Other Line", [1.0, 2.0, 3.0, 4.0])
+    assert yfinance_client._calc_net_payout_yield(_FakeFundTicker(cashflow=cf), 1000.0) is None
+
+
+def test_net_payout_none_without_market_cap():
+    cf = _row("Cash Dividends Paid", [-5.0, -5.0, -5.0, -5.0])
+    assert yfinance_client._calc_net_payout_yield(_FakeFundTicker(cashflow=cf), None) is None
+
+
+def test_get_fundamentals_no_longer_returns_ev_ebit(monkeypatch):
+    """ev_ebit is removed in M2; gpa + net_payout_yield are the new keys."""
+    seen = _capture_ticker_symbols(monkeypatch, _good_frame())
+    out = yfinance_client.get_fundamentals("AAPL")
+    assert "ev_ebit" not in out
+    assert "gpa" in out and "net_payout_yield" in out
     assert seen == ["AAPL"]

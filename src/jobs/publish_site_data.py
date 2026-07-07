@@ -81,11 +81,11 @@ _PRICE_COLS = [
 ]
 
 _FUNDAMENTAL_COLS = [
-    "pe_ratio", "pb_ratio", "ev_ebitda", "ev_ebit",
+    "pe_ratio", "pb_ratio", "ev_ebitda",
     "roe", "roic", "debt_equity",
     "eps_ttm", "dividend_yield",
     "revenue_growth_ttm", "oper_margin_ttm", "gross_margin_ttm",
-    "fcf_margin_ttm", "market_cap", "beta",
+    "fcf_margin_ttm", "gpa", "net_payout_yield", "market_cap", "beta",
 ]
 
 

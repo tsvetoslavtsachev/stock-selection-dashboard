@@ -207,7 +207,6 @@ git push -u origin main
 
 ## TODO
 
-- [ ] Добавяне на EV/EBIT изчисление (изисква market cap source)
 - [ ] FCF margin от SEC за всички тикъри (coverage varies)
 - [ ] Sector heatmap визуализация в dashboard-а
 - [ ] Исторически snapshot архив (rolling 52-week history)
