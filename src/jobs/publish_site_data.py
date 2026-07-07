@@ -129,7 +129,7 @@ def run() -> None:
     if "composite_score" in df.columns:
         df = df.sort_values("composite_score", ascending=False).reset_index(drop=True)
 
-    as_of = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    as_of = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     data_asof, data_age_days, data_fresh = _data_recency(df)
 
     # ── ranked_stocks.json ──
