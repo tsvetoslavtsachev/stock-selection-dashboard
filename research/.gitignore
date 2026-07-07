@@ -1,0 +1,8 @@
+# Research working tree — cache is large, regenerable, and must never be committed.
+cache/
+
+# Local build/scratch artifacts (data/ panel + reports ARE tracked deliberately;
+# only transient junk is ignored here).
+__pycache__/
+*.pyc
+.pytest_cache/

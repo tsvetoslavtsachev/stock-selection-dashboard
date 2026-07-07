@@ -1,0 +1,39 @@
+# G2 coverage report
+# section: per-concept coverage (>=1 value with period_end in 2024+)
+concept,n_with_value_2024plus,pct_of_universe
+total_assets,503,1.0
+stockholders_equity,503,1.0
+operating_cash_flow,503,1.0
+cash_and_equivalents,501,0.996
+revenues,493,0.9801
+net_income,480,0.9543
+depreciation_amortization,473,0.9404
+shares_outstanding,462,0.9185
+buybacks,435,0.8648
+capex,435,0.8648
+current_liabilities,422,0.839
+operating_income,397,0.7893
+dividends_paid,393,0.7813
+total_debt,350,0.6958
+gross_profit,192,0.3817
+
+# section: per-year company count with a revenues fact
+year,companies_with_revenues
+2009,346
+2010,367
+2011,377
+2012,385
+2013,391
+2014,393
+2015,396
+2016,446
+2017,469
+2018,480
+2019,482
+2020,483
+2021,486
+2022,490
+2023,493
+2024,493
+2025,492
+2026,487
