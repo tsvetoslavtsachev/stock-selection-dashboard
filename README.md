@@ -14,6 +14,13 @@ A fully static, factor-scored equity dashboard that runs on GitHub Actions and i
 4. Публикува компактни **JSON snapshots** в `app/data/`
 5. **GitHub Pages** сервира статичния dashboard, който чете само тези JSON файлове
 
+### Етикети на лицето (КОКПИТ вълна 1, O4/П7)
+
+Дашбордът вече не е епистемично „голо" лице:
+
+- **O4 бадж** (горе вдясно): `Observation, not a signal · descriptive factor inventory` — z-скоровете са дескриптивен факторен инвентар, не forward сигнал.
+- **Мощностен ред** (банер под хедъра): композитът е конструкция, не доказан ранкер; единственият валидиран фактор е **net payout yield** (raw 63d IC +0.036 [CI +0.004, +0.073], `validated`), на самия таван на мощността (n≈60 → t=2 иска |IC|≈0.048). Останалото е дескриптивен sector-neutral z-score.
+
 ---
 
 ## Архитектура
