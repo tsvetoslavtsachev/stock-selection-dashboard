@@ -140,6 +140,23 @@ body {
   border-radius: 4px; padding: 0 5px; white-space: nowrap;
 }
 
+/* Conclusion line (canon rule 1: "the takeaway first") — one human line,
+   generated from the data, stating what this is and what it shows now. */
+.conclusion-line {
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  padding: 9px 24px;
+  font-size: 12.5px; line-height: 1.5; color: var(--text-secondary);
+}
+.conclusion-line strong { color: var(--text-primary); font-weight: 600; }
+
+/* Ticker links (canon rule 2: every name links out to Finviz) — inherit the
+   cell colour so the table look is unchanged; underline only on hover. */
+tbody td.ticker a { color: inherit; text-decoration: none; }
+tbody td.ticker a:hover { text-decoration: underline; }
+a.detail-ticker { display: inline-block; text-decoration: none; cursor: pointer; }
+a.detail-ticker:hover { text-decoration: underline; }
+
 .main-content {
   display: flex;
   height: calc(100vh - 49px);
@@ -623,6 +640,9 @@ tbody td:nth-child(4) { text-align: left; color: var(--text-secondary); font-siz
   </div>
 </header>
 
+<!-- Conclusion line (canon rule 1): populated from the data on load -->
+<div class="conclusion-line" id="conclusionLine">Loading…</div>
+
 <!-- Power row (П7): epistemic weight of the construction on the face -->
 <div class="power-row">
   <strong>The Composite is a construction, not a proven forward signal.</strong>
@@ -669,30 +689,30 @@ tbody td:nth-child(4) { text-align: left; color: var(--text-secondary); font-siz
         <thead>
           <tr class="col-group">
             <th colspan="4"></th>
-            <th colspan="5" class="cg-scores">Scores</th>
-            <th colspan="4" class="cg-price">Price Momentum</th>
-            <th colspan="7" class="cg-fundm">Fundamentals</th>
+            <th colspan="5" class="cg-scores" title="Sector-neutral z-scores (~-3 to +3, 0 = sector average). Descriptive factor inventory, not proven forward signals.">Scores</th>
+            <th colspan="4" class="cg-price" title="Backward-looking price behaviour: recent returns and realised volatility.">Price Momentum</th>
+            <th colspan="7" class="cg-fundm" title="Company fundamentals: valuation, profitability, leverage, payout and size.">Fundamentals</th>
           </tr>
           <tr id="headerRow">
-            <th data-col="rank">#</th>
-            <th data-col="ticker">Ticker</th>
-            <th data-col="name">Name</th>
-            <th data-col="sector">Sector</th>
-            <th data-col="composite_score">Composite</th>
-            <th data-col="trend_score">Trend</th>
-            <th data-col="quality_score">Quality</th>
-            <th data-col="value_score">Value</th>
-            <th data-col="risk_score">Risk</th>
-            <th data-col="ret_12_1">12-1 Mom</th>
-            <th data-col="ret_13w">13W Ret</th>
-            <th data-col="volatility_26w">Vol 26W</th>
-            <th data-col="pe_ratio">P/E</th>
-            <th data-col="pb_ratio">P/B</th>
-            <th data-col="roe">ROE</th>
-            <th data-col="ev_ebitda">EV/EBITDA</th>
-            <th data-col="debt_equity">D/E</th>
-            <th data-col="dividend_yield">Div Yld</th>
-            <th data-col="market_cap">Mkt Cap</th>
+            <th data-col="rank" title="Rank within the current filter, by the sort column (default: Composite, high to low).">#</th>
+            <th data-col="ticker" title="Stock symbol. Click to open the company on Finviz.">Ticker</th>
+            <th data-col="name" title="Company name.">Name</th>
+            <th data-col="sector" title="GICS sector. Every score below is computed within the sector — against peers, not the whole market.">Sector</th>
+            <th data-col="composite_score" title="Composite z-score = Trend + Quality + Value, re-standardized (equal-contribution). Higher is better; 0 = sector average. A construction, not a proven forward signal.">Composite</th>
+            <th data-col="trend_score" title="Trend factor — sector-neutral z-score of price momentum. Higher = stronger recent trend vs sector peers.">Trend</th>
+            <th data-col="quality_score" title="Quality factor — sector-neutral z-score of profitability (ROE, ROIC, gross profitability). Higher = higher quality vs peers.">Quality</th>
+            <th data-col="value_score" title="Value factor — sector-neutral z-score of cheapness (earnings/book/EV yields). Higher = cheaper vs peers.">Value</th>
+            <th data-col="risk_score" title="Risk factor — sector-neutral z-score; higher = safer (lower volatility, debt, beta). A separate regime lens, NOT part of the Composite.">Risk</th>
+            <th data-col="ret_12_1" title="12-1 momentum — trailing 12-month total return excluding the most recent month (a standard momentum measure).">12-1 Mom</th>
+            <th data-col="ret_13w" title="13-week price return (about one calendar quarter).">13W Ret</th>
+            <th data-col="volatility_26w" title="Annualized volatility over the last 26 weeks — how much the price swings. Lower = calmer.">Vol 26W</th>
+            <th data-col="pe_ratio" title="Price / Earnings — share price divided by trailing 12-month earnings per share. Lower = cheaper on earnings.">P/E</th>
+            <th data-col="pb_ratio" title="Price / Book — share price divided by book value per share. Lower = cheaper on assets.">P/B</th>
+            <th data-col="roe" title="Return on Equity — net income divided by shareholders' equity. Higher = more profit per unit of equity.">ROE</th>
+            <th data-col="ev_ebitda" title="Enterprise Value / EBITDA — whole-company value versus operating earnings. Lower = cheaper.">EV/EBITDA</th>
+            <th data-col="debt_equity" title="Debt / Equity — total debt divided by shareholders' equity. Higher = more leveraged.">D/E</th>
+            <th data-col="dividend_yield" title="Dividend yield — trailing 12-month dividends divided by share price.">Div Yld</th>
+            <th data-col="market_cap" title="Market capitalization — share price times shares outstanding (T = trillion, B = billion).">Mkt Cap</th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -764,6 +784,7 @@ async function init() {
     compositeWeights = summary.composite_weights || null;
 
     renderKPIs(summary);
+    renderConclusion(summary);
     buildSectorFilter();
     applyFilters();
     bindEvents();
@@ -828,6 +849,25 @@ function renderFreshness(s) {
     return;
   }
   el.textContent = txt;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONCLUSION LINE (canon rule 1: the takeaway first) — one human line, built
+   from the summary, saying what this is and what it shows right now.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function renderConclusion(s) {
+  const el = document.getElementById('conclusionLine');
+  if (!el) return;
+  const n = s.universe_size ?? allStocks.length;
+  const top = s.top_symbol || '—';
+  const topSector = s.top_sector ? ' (' + s.top_sector + ')' : '';
+  const med = (s.median_composite != null) ? Number(s.median_composite).toFixed(2) : '—';
+  el.innerHTML =
+    '<strong>What this is:</strong> ' + n + ' S&amp;P 500 stocks scored <em>within their GICS sector</em> ' +
+    'on a descriptive factor composite (Trend + Quality + Value). ' +
+    '<strong>Right now</strong> the top-ranked name is <strong>' + top + '</strong>' + topSector +
+    '; the median composite sits at ' + med + ' (0 = sector average). ' +
+    'A snapshot of who screens well today — an inventory, not a buy list.';
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -910,7 +950,7 @@ function renderTable() {
 
     tr.innerHTML =
       td(s.rank, 'l') +
-      td(s.ticker, 'l ticker') +
+      tdTicker(s.ticker) +
       td(s.name || '', 'l name') +
       td(s.sector || '', 'l') +
       tdScore(s.composite_score) +
@@ -939,6 +979,14 @@ function renderTable() {
 /* Cell helpers */
 function td(v, cls) {
   return `<td${cls ? ' class="' + cls + '"' : ''}>${v ?? '—'}</td>`;
+}
+
+/* Ticker cell (canon rule 2): symbol links out to Finviz (US universe).
+   stopPropagation keeps the row-click detail behaviour for the rest of the row. */
+function tdTicker(t) {
+  if (!t) return '<td class="l ticker">—</td>';
+  const u = 'https://finviz.com/quote.ashx?t=' + encodeURIComponent(t);
+  return `<td class="l ticker"><a href="${u}" target="_blank" rel="noopener" title="Open ${t} on Finviz ↗" onclick="event.stopPropagation()">${t}</a></td>`;
 }
 
 function tdNum(v, dec) {
@@ -994,6 +1042,29 @@ function fmtCap(v) {
   return v.toLocaleString();
 }
 
+/* Tooltips for the detail-panel fundamentals (canon rule 3: unpack every term). */
+const FUND_TT = {
+  'P/E Ratio': "Price / Earnings — share price ÷ trailing 12-month EPS. Lower = cheaper on earnings.",
+  'P/B Ratio': "Price / Book — share price ÷ book value per share. Lower = cheaper on assets.",
+  'EV/EBITDA': "Enterprise Value ÷ EBITDA — whole-company value vs operating earnings. Lower = cheaper.",
+  'Net Payout Yld': "Net payout yield — (dividends + buybacks − issuance) ÷ market cap. The one factor validated in all three regimes.",
+  'ROE': "Return on Equity — net income ÷ shareholders' equity. Higher = more profit per unit of equity.",
+  'ROIC': "Return on Invested Capital — after-tax operating profit ÷ invested capital. Higher = more efficient capital use.",
+  'GP / Assets': "Gross profitability — gross profit ÷ total assets (Novy-Marx quality measure). Higher = better.",
+  'Debt/Equity': "Debt / Equity — total debt ÷ shareholders' equity. Higher = more leveraged.",
+  'Beta': "Beta — sensitivity to the market. 1 = moves with the market; above 1 = more volatile than the market.",
+  'EPS (TTM)': "Earnings per share, trailing twelve months.",
+  'Div Yield': "Dividend yield — trailing 12-month dividends ÷ share price.",
+  'Rev Growth': "Revenue growth, trailing twelve months year-over-year.",
+  'Oper Margin': "Operating margin — operating income ÷ revenue (TTM).",
+  'Gross Margin': "Gross margin — gross profit ÷ revenue (TTM).",
+  'FCF Margin': "Free-cash-flow margin — free cash flow ÷ revenue (TTM).",
+  'Market Cap': "Market capitalization — share price × shares outstanding.",
+  '12-1 Mom': "12-1 momentum — trailing 12-month return excluding the most recent month.",
+  '13W Ret': "13-week price return (about one calendar quarter).",
+  'Volatility': "Annualized volatility over the last 26 weeks. Lower = calmer.",
+};
+
 /* ═══════════════════════════════════════════════════════════════════════════
    DETAIL PANEL
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -1008,7 +1079,7 @@ function showDetail(stock) {
 
   // Header
   document.getElementById('detailHeader').innerHTML = `
-    <div class="detail-ticker">${stock.ticker}</div>
+    <a class="detail-ticker" href="https://finviz.com/quote.ashx?t=${encodeURIComponent(stock.ticker)}" target="_blank" rel="noopener" title="Open ${stock.ticker} on Finviz ↗">${stock.ticker}</a>
     <div class="detail-name">${stock.name || ''}</div>
     <div class="detail-sector">${stock.sector || ''}</div>
     <span class="detail-rank-badge">Rank #${stock.rank}</span>
@@ -1082,7 +1153,7 @@ function showDetail(stock) {
     <div class="fund-grid">
       ${items.map(i => `
         <div class="fund-item">
-          <div class="fund-label">${i.label}</div>
+          <div class="fund-label"${FUND_TT[i.label] ? ' title="' + FUND_TT[i.label] + '"' : ''}>${i.label}</div>
           <div class="fund-val">${i.val}</div>
         </div>
       `).join('')}
