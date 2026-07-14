@@ -120,8 +120,31 @@ _CONCEPTS: dict[str, tuple[str, list[str], str]] = {
     ], _SHARES),
 }
 
-# shares_outstanding fallback into us-gaap when dei is absent (handled explicitly).
-_SHARES_GAAP_FALLBACK = ("us-gaap", "CommonStockSharesOutstanding")
+# shares_outstanding — ONE economic quantity (common shares outstanding, point in
+# time) tagged across TWO namespaces by era/filer: the dei cover-page tag and the
+# us-gaap balance-sheet tag. We UNION both (dei priority on an exact key collision)
+# so a name whose dei facts went stale — or dropped out because the SEC
+# companyfacts API discards DIMENSIONAL facts and multi-class issuers tag their
+# cover-page shares PER CLASS (StatementClassOfStockAxis) — can still be carried by
+# a fresh us-gaap:CommonStockSharesOutstanding fact (recovers e.g. ARES, HSY).
+# NB: dei facts stamp the cover-page "as of" date (later); us-gaap facts stamp the
+# balance-sheet quarter-end (earlier). So for a name with a fresh dei fact, dei
+# still wins the latest-period_end selection — the us-gaap tag only surfaces when
+# dei is stale or absent. (Names whose recent counts exist ONLY dimensionally —
+# Visa, Comcast, Nike, Meta — remain honestly uncovered here and are made
+# honest-empty downstream by the valuation-organ М32 sentinel/staleness guards.)
+_SHARES_TAGS = (
+    ("dei", "EntityCommonStockSharesOutstanding"),
+    ("us-gaap", "CommonStockSharesOutstanding"),
+)
+
+# Sub-million sentinel floor for shares_outstanding. A cover-page share count
+# below this is never a real issuer: it is a spin-off placeholder (FOXA = 1.0,
+# 2019), a zero-class sentinel (CVNA/DDOG/HOOD/SPG/TAP = 0.0), or a cover-page
+# count mis-scaled to THOUSANDS (CMG "27,962" @2022 = 27.96M; RMD "145,681" @2021
+# = 145.68M). We reject them AT THE SOURCE so the immutable panel evidence itself
+# is clean; the valuation-organ М32 <1e6 guard stays as belt-and-suspenders.
+SHARES_SENTINEL_MIN = 1_000_000
 
 # total_debt split pair (summed at matching period_end+filed) then fallback chain.
 _DEBT_SPLIT = ("LongTermDebtNoncurrent", "LongTermDebtCurrent")
@@ -194,6 +217,33 @@ def _union_chain(facts: dict, namespace: str, tags: list[str], unit: str) -> tup
         if added:
             used.append(tag)
     return used, out
+
+
+def _extract_shares(facts: dict) -> tuple[list[dict], int]:
+    """Common-shares-outstanding records, unioned across the dei cover-page tag and
+    the us-gaap balance-sheet tag (dei priority on an exact start/end/filed
+    collision), with sub-million sentinels rejected at the source.
+
+    A dropped sentinel does NOT reserve its key, so a real value at the same key
+    from the other tag still comes through (prefer a real count over a placeholder).
+    Returns (records, n_sentinels_dropped)."""
+    seen: set[tuple] = set()
+    out: list[dict] = []
+    dropped = 0
+    for ns, tag in _SHARES_TAGS:
+        for r in _facts_for_tag(facts, ns, tag, _SHARES):
+            if "end" not in r or "filed" not in r or "val" not in r:
+                continue
+            key = (r.get("start", ""), r["end"], r["filed"])
+            if key in seen:
+                continue  # earlier tag (dei) already supplied this exact fact
+            val = r["val"]
+            if not isinstance(val, (int, float)) or isinstance(val, bool) or val < SHARES_SENTINEL_MIN:
+                dropped += 1
+                continue  # placeholder / zero-class / thousands-scaled — not a real count
+            seen.add(key)
+            out.append(r)
+    return out, dropped
 
 
 def _emit_rows(ticker: str, cik10: str, concept: str, unit: str, records: list[dict]) -> list[list]:
@@ -276,14 +326,18 @@ def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict) -> list[
     rows: list[list] = []
 
     for concept, (namespace, tags, unit) in _CONCEPTS.items():
-        # Union the chain (tag migration of the SAME line across accounting eras);
-        # de-duplicated by (start,end,filed), earlier tag wins an exact collision.
-        _tags_used, recs = _union_chain(facts, namespace, tags, unit)
-
-        # shares_outstanding: fall back from dei to us-gaap:CommonStockSharesOutstanding.
-        if concept == "shares_outstanding" and not recs:
-            gaap_ns, gaap_tag = _SHARES_GAAP_FALLBACK
-            recs = _facts_for_tag(facts, gaap_ns, gaap_tag, unit)
+        if concept == "shares_outstanding":
+            # dei ∪ us-gaap common-shares tags, sub-million sentinels dropped at
+            # source (see _extract_shares). NOT the generic _union_chain — this one
+            # spans two namespaces and screens the value.
+            recs, n_drop = _extract_shares(facts)
+            if n_drop:
+                stats["shares_sentinels_dropped"] = stats.get("shares_sentinels_dropped", 0) + n_drop
+                stats.setdefault("shares_sentinel_names", {})[ticker] = n_drop
+        else:
+            # Union the chain (tag migration of the SAME line across accounting
+            # eras); de-duplicated by (start,end,filed), earlier tag wins a tie.
+            _tags_used, recs = _union_chain(facts, namespace, tags, unit)
 
         if recs:
             rows.extend(_emit_rows(ticker, cik10, concept, unit, recs))
@@ -331,6 +385,8 @@ def build(limit: int | None = None) -> dict:
         "rows": 0,
         "foreign_unit_facts": 0,
         "missing_concept": {},
+        "shares_sentinels_dropped": 0,   # sub-1e6 shares facts rejected at source
+        "shares_sentinel_names": {},     # ticker -> count of dropped sentinels
     }
 
     _PANEL_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -374,6 +430,12 @@ def build(limit: int | None = None) -> dict:
     worst = sorted(stats["missing_concept"].items(), key=lambda kv: -kv[1])[:5]
     if worst:
         logger.info("Concepts missing for most companies: %s", worst)
+    if stats["shares_sentinels_dropped"]:
+        logger.info(
+            "shares_outstanding: %d sub-1e6 sentinel facts dropped at source across %d names: %s",
+            stats["shares_sentinels_dropped"], len(stats["shares_sentinel_names"]),
+            sorted(stats["shares_sentinel_names"].items()),
+        )
     return stats
 
 
