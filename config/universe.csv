@@ -60,12 +60,12 @@ BEN,38777,Franklin Resources,Financials,Asset Management & Custody Banks,1
 BF.B,14693,Brown–Forman,Consumer Staples,Distillers & Vintners,1
 BG,1996862,Bunge Global,Consumer Staples,Agricultural Products & Services,1
 BIIB,875045,Biogen,Health Care,Biotechnology,1
-BK,1390777,BNY Mellon,Financials,Asset Management & Custody Banks,1
 BKNG,1075531,Booking Holdings,Consumer Discretionary,"Hotels, Resorts & Cruise Lines",1
 BKR,1701605,Baker Hughes,Energy,Oil & Gas Equipment & Services,1
 BLDR,1316835,Builders FirstSource,Industrials,Building Products,1
 BLK,2012383,BlackRock,Financials,Asset Management & Custody Banks,1
 BMY,14272,Bristol Myers Squibb,Health Care,Pharmaceuticals,1
+BNY,1390777,BNY Mellon,Financials,Asset Management & Custody Banks,1
 BR,1383312,Broadridge Financial Solutions,Industrials,Data Processing & Outsourced Services,1
 BRK.B,1067983,Berkshire Hathaway,Financials,Multi-Sector Holdings,1
 BRO,79282,Brown & Brown,Financials,Insurance Brokers,1
@@ -155,6 +155,7 @@ DVN,1090012,Devon Energy,Energy,Oil & Gas Exploration & Production,1
 DXCM,1093557,Dexcom,Health Care,Health Care Equipment,1
 EA,712515,Electronic Arts,Communication Services,Interactive Home Entertainment,1
 EBAY,1065088,eBay Inc.,Consumer Discretionary,Broadline Retail,1
+ECHO,1415404,EchoStar,Communication Services,Wireless Telecommunication Services,1
 ECL,31462,Ecolab,Materials,Specialty Chemicals,1
 ED,1047862,Consolidated Edison,Utilities,Multi-Utilities,1
 EFX,33185,Equifax,Industrials,Research & Consulting Services,1
@@ -399,7 +400,6 @@ ROST,745732,Ross Stores,Consumer Discretionary,Apparel Retail,1
 RSG,1060391,Republic Services,Industrials,Environmental & Facilities Services,1
 RTX,101829,RTX Corporation,Industrials,Aerospace & Defense,1
 RVTY,31791,Revvity,Health Care,Health Care Equipment,1
-SATS,1415404,EchoStar,Communication Services,Wireless Telecommunication Services,1
 SBAC,1034054,SBA Communications,Real Estate,Telecom Tower REITs,1
 SBUX,829224,Starbucks,Consumer Discretionary,Restaurants,1
 SCHW,316709,Charles Schwab Corporation,Financials,Investment Banking & Brokerage,1
