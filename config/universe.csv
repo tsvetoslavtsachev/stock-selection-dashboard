@@ -73,7 +73,7 @@ BSX,885725,Boston Scientific,Health Care,Health Care Equipment,1
 BX,1393818,Blackstone Inc.,Financials,Asset Management & Custody Banks,1
 BXP,1037540,"BXP, Inc.",Real Estate,Office REITs,1
 C,831001,Citigroup,Financials,Diversified Banks,1
-CAG,23217,Conagra Brands,Consumer Staples,Packaged Foods & Meats,1
+CAG,23217,Conagra Brands,Consumer Staples,Packaged Foods & Meats,0
 CAH,721371,Cardinal Health,Health Care,Health Care Distributors,1
 CARR,1783180,Carrier Global,Industrials,Building Products,1
 CASY,726958,Casey's,Consumer Staples,Food Retail,1
@@ -111,7 +111,7 @@ COP,1163165,ConocoPhillips,Energy,Oil & Gas Exploration & Production,1
 COR,1140859,Cencora,Health Care,Health Care Distributors,1
 COST,909832,Costco,Consumer Staples,Consumer Staples Merchandise Retail,1
 CPAY,1175454,Corpay,Financials,Transaction & Payment Processing Services,1
-CPB,16732,Campbell's Company (The),Consumer Staples,Packaged Foods & Meats,1
+CPB,16732,Campbell's Company (The),Consumer Staples,Packaged Foods & Meats,0
 CPRT,900075,Copart,Industrials,Diversified Support Services,1
 CPT,906345,Camden Property Trust,Real Estate,Multi-Family Residential REITs,1
 CRH,849395,CRH plc,Materials,Construction Materials,1
@@ -166,7 +166,7 @@ ELV,1156039,Elevance Health,Health Care,Managed Health Care,1
 EME,105634,Emcor,Industrials,Construction & Engineering,1
 EMR,32604,Emerson Electric,Industrials,Electrical Components & Equipment,1
 EOG,821189,EOG Resources,Energy,Oil & Gas Exploration & Production,1
-EPAM,1352010,EPAM Systems,Information Technology,IT Consulting & Other Services,1
+EPAM,1352010,EPAM Systems,Information Technology,IT Consulting & Other Services,0
 EQIX,1101239,Equinix,Real Estate,Data Center REITs,1
 EQR,906107,Equity Residential,Real Estate,Multi-Family Residential REITs,1
 EQT,33213,EQT Corporation,Energy,Oil & Gas Exploration & Production,1
@@ -188,6 +188,7 @@ FAST,815556,Fastenal,Industrials,Trading Companies & Distributors,1
 FCX,831259,Freeport-McMoRan,Materials,Copper,1
 FDS,1013237,FactSet,Financials,Financial Exchanges & Data,1
 FDX,1048911,FedEx,Industrials,Air Freight & Logistics,1
+FDXF,2082247,FedEx Freight,Industrials,Cargo Ground Transportation,1
 FE,1031296,FirstEnergy,Utilities,Electric Utilities,1
 FFIV,1048695,"F5, Inc.",Information Technology,Communications Equipment,1
 FICO,814547,Fair Isaac,Information Technology,Application Software,1
@@ -195,6 +196,7 @@ FIS,1136893,Fidelity National Information Services,Financials,Transaction & Paym
 FISV,798354,Fiserv,Financials,Transaction & Payment Processing Services,1
 FITB,35527,Fifth Third Bancorp,Financials,Regional Banks,1
 FIX,1035983,Comfort Systems USA,Industrials,Construction & Engineering,1
+FLEX,866374,Flex,Information Technology,Electronic Manufacturing Services,1
 FOX,1754301,Fox Corporation (Class B),Communication Services,Broadcasting,1
 FOXA,1754301,Fox Corporation (Class A),Communication Services,Broadcasting,1
 FRT,34903,Federal Realty Investment Trust,Real Estate,Retail REITs,1
@@ -229,6 +231,7 @@ HIG,874766,Hartford (The),Financials,Property & Casualty Insurance,1
 HII,1501585,Huntington Ingalls Industries,Industrials,Aerospace & Defense,1
 HLT,1585689,Hilton Worldwide,Consumer Discretionary,"Hotels, Resorts & Cruise Lines",1
 HON,773840,Honeywell,Industrials,Industrial Conglomerates,1
+HONA,2089271,Honeywell Aerospace,Industrials,Aerospace & Defense,1
 HOOD,1783879,Robinhood Markets,Financials,Investment Banking & Brokerage,1
 HPE,1645590,Hewlett Packard Enterprise,Information Technology,"Technology Hardware, Storage & Peripherals",1
 HPQ,47217,HP Inc.,Information Technology,"Technology Hardware, Storage & Peripherals",1
@@ -318,6 +321,7 @@ MPWR,1280452,Monolithic Power Systems,Information Technology,Semiconductors,1
 MRK,310158,Merck & Co.,Health Care,Pharmaceuticals,1
 MRNA,1682852,Moderna,Health Care,Biotechnology,1
 MRSH,62709,Marsh McLennan,Financials,Insurance Brokers,1
+MRVL,1835632,Marvell Technology,Information Technology,Semiconductors,1
 MS,895421,Morgan Stanley,Financials,Investment Banking & Brokerage,1
 MSCI,1408198,MSCI Inc.,Financials,Financial Exchanges & Data,1
 MSFT,789019,Microsoft,Information Technology,Systems Software,1
@@ -374,7 +378,7 @@ PNC,713676,PNC Financial Services,Financials,Diversified Banks,1
 PNR,77360,Pentair,Industrials,Industrial Machinery & Supplies & Components,1
 PNW,764622,Pinnacle West Capital,Utilities,Multi-Utilities,1
 PODD,1145197,Insulet Corporation,Health Care,Health Care Equipment,1
-POOL,945841,Pool Corporation,Consumer Discretionary,Distributors,1
+POOL,945841,Pool Corporation,Consumer Discretionary,Distributors,0
 PPG,79879,PPG Industries,Materials,Specialty Chemicals,1
 PPL,922224,PPL Corporation,Utilities,Electric Utilities,1
 PRU,1137774,Prudential Financial,Financials,Life & Health Insurance,1
@@ -465,6 +469,7 @@ UPS,1090727,United Parcel Service,Industrials,Air Freight & Logistics,1
 URI,1067701,United Rentals,Industrials,Trading Companies & Distributors,1
 USB,36104,U.S. Bancorp,Financials,Diversified Banks,1
 V,1403161,Visa Inc.,Financials,Transaction & Payment Processing Services,1
+VEEV,1393052,Veeva Systems,Health Care,Health Care Technology,1
 VICI,1705696,Vici Properties,Real Estate,Hotel & Resort REITs,1
 VLO,1035002,Valero Energy,Energy,Oil & Gas Refining & Marketing,1
 VLTO,1967680,Veralto,Industrials,Environmental & Facilities Services,1
