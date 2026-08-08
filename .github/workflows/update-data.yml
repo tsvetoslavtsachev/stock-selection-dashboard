@@ -4,6 +4,12 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '15 22 * * 1-5'   # Mon–Fri 22:15 UTC (after US market close)
+    # Sat 03:47 UTC — after price-daily (00:37) writes Friday's close, before the
+    # satellite collect (06:13); odd minutes dodge the round-hour scheduler queue.
+    # market_summary.json audit (2026-08-08) showed a Friday-timestamped run still
+    # carrying Thursday's close (data_asof lags as_of by 1 day) — this Saturday run
+    # lets Friday's actual close land before the weekend ritual reads the dashboard.
+    - cron: '47 3 * * 6'
 
 permissions:
   contents: write
