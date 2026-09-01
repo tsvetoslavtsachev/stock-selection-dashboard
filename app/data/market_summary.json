@@ -1,15 +1,15 @@
 {
   "universe_size": 503,
   "missing_price_count": 0,
-  "partial_price_count": 3,
+  "partial_price_count": 4,
   "top_symbol": "EIX",
-  "top_score": 2.5334,
+  "top_score": 2.6595,
   "top_sector": "Utilities",
   "bottom_symbol": "AXON",
-  "bottom_score": -2.0111,
-  "median_composite": -0.0002,
+  "bottom_score": -1.9706,
+  "median_composite": 0.005,
   "avg_composite": -0.0,
-  "avg_pe": 24.5348,
+  "avg_pe": 24.303,
   "avg_roe": 0.1646,
   "sector_counts": {
     "Industrials": 82,
@@ -24,9 +24,9 @@
     "Communication Services": 24,
     "Energy": 21
   },
-  "as_of": "2026-08-29T10:31:12Z",
-  "data_asof": "2026-08-27",
-  "data_age_days": 2,
+  "as_of": "2026-09-01T01:24:08Z",
+  "data_asof": "2026-08-28",
+  "data_age_days": 4,
   "data_fresh": true,
   "stale_after_days": 5,
   "composite_weights": {

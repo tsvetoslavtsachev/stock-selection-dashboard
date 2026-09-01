@@ -165,7 +165,7 @@
     "EMR": "base",
     "EOG": "base",
     "EQIX": "base",
-    "EQR": "base",
+    "EQR": "fetch",
     "EQT": "base",
     "ERIE": "base",
     "ES": "base",
@@ -507,7 +507,7 @@
   "summary": {
     "expected": 503,
     "covered": 503,
-    "base": 503,
-    "fetch": 0
+    "base": 502,
+    "fetch": 1
   }
 }
