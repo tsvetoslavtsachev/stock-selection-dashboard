@@ -51,6 +51,12 @@ _UNIVERSE_PATH = _REPO_ROOT / "config" / "universe.csv"
 _CACHE_DIR = _REPO_ROOT / "research" / "cache" / "edgar"
 _FAILURES_PATH = _REPO_ROOT / "research" / "data" / "edgar_failures.csv"
 
+# enabled=1 is the S&P 500 canon; enabled=2 is a GUEST row (a name outside the index that the
+# organ must read anyway, LYFT from УБР3 29.09.2026): SEC facts are collected and paneled for it,
+# but the daily pipeline (src/jobs, read_universe) and every consensus ingest read only ==1.
+# Mirrored in build_panel.SEC_STATUSES; tests/test_universe_status.py pins both.
+SEC_STATUSES = ("1", "2", "")
+
 PROGRESS_EVERY = 25
 RETRY_ATTEMPTS = 2        # extra attempts on top of SECClient's internal retry
 RETRY_BACKOFF = 3.0       # seconds between our own retries
@@ -62,13 +68,13 @@ def _pad10(cik: str | int) -> str:
 
 
 def load_universe(path: Path = _UNIVERSE_PATH) -> list[dict]:
-    """Read universe.csv -> list of {symbol, cik, ...}. Only enabled==1 rows with a
-    non-empty CIK are kept (the whole universe is enabled today, but the guard
-    keeps the collector honest if that ever changes)."""
+    """Read universe.csv -> list of {symbol, cik, ...}. Only enabled in SEC_STATUSES
+    (1 = S&P canon, 2 = guest) rows with a non-empty CIK are kept; enabled==0 stays
+    switched off."""
     rows: list[dict] = []
     with open(path, encoding="utf-8") as f:
         for row in csv.DictReader(f):
-            if row.get("enabled", "1").strip() not in ("1", ""):
+            if row.get("enabled", "1").strip() not in SEC_STATUSES:
                 continue
             cik = (row.get("cik") or "").strip()
             if not cik:

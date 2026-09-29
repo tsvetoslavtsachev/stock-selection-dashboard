@@ -56,7 +56,8 @@ def read_universe(enabled_only: bool = True) -> pd.DataFrame:
         cik      — SEC CIK number (int or zero-padded string)
         sector   — GICS sector string
         name     — company display name
-        enabled  — 1 to include in pipeline, 0 to skip
+        enabled  — 1 to include in pipeline, 0 to skip; 2 = GUEST (outside the S&P 500,
+                   read only by the SEC collectors, never by the pipeline)
 
     Parameters
     ----------

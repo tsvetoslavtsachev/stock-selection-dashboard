@@ -57,6 +57,15 @@ def _universe_size() -> int:
                    if (r.get("enabled", "1").strip() in ("1", "")) and (r.get("cik") or "").strip())
 
 
+def _canon_symbols() -> set[str]:
+    """The S&P 500 canon: enabled==1 rows only. A GUEST (enabled=2, outside the index, e.g. LYFT
+    from УБР3) sits in the panel for the organ, but must not count in the S&P coverage numerator
+    while universe_n is the canon size (it showed 504/503 = 100.2%)."""
+    with open(_UNIVERSE_PATH, encoding="utf-8") as f:
+        return {r["symbol"].strip() for r in csv.DictReader(f)
+                if r.get("enabled", "1").strip() in ("1", "") and (r.get("cik") or "").strip()}
+
+
 # ---------------------------------------------------------------------------
 # G2 — coverage report
 # ---------------------------------------------------------------------------
@@ -156,6 +165,7 @@ def run() -> dict:
 
     logger.info("Loading panel %s ...", _PANEL_PATH)
     panel = pit.load_panel(_PANEL_PATH)
+    panel = panel[panel["ticker"].isin(_canon_symbols())]     # guests (enabled=2) are not S&P coverage
     universe_n = _universe_size()
 
     # --- G2 ---

@@ -51,6 +51,12 @@ _UNIVERSE_PATH = _REPO_ROOT / "config" / "universe.csv"
 _CACHE_DIR = _REPO_ROOT / "research" / "cache" / "edgar"
 _PANEL_PATH = _REPO_ROOT / "research" / "data" / "edgar_pit_panel.csv.gz"
 
+# enabled=1 is the S&P 500 canon; enabled=2 is a GUEST row (a name outside the index that the
+# organ must read anyway, LYFT from УБР3 29.09.2026): SEC facts are collected and paneled for it,
+# but the daily pipeline (src/jobs, read_universe) and every consensus ingest read only ==1.
+# Mirrored in collect_edgar.SEC_STATUSES; tests/test_universe_status.py pins both.
+SEC_STATUSES = ("1", "2", "")
+
 PANEL_COLUMNS = [
     "ticker", "cik", "concept", "unit",
     "period_start", "period_end", "filed", "form", "fy", "fp", "value",
@@ -152,11 +158,12 @@ _DEBT_FALLBACK_TAGS = ["LongTermDebt", "DebtLongtermAndShorttermCombinedAmount"]
 
 
 def load_universe(path: Path = _UNIVERSE_PATH) -> list[tuple[str, str]]:
-    """Return [(ticker, cik10)] for enabled rows with a CIK."""
+    """Return [(ticker, cik10)] for rows with enabled in SEC_STATUSES (1 = S&P canon,
+    2 = guest) and a CIK."""
     out: list[tuple[str, str]] = []
     with open(path, encoding="utf-8") as f:
         for row in csv.DictReader(f):
-            if row.get("enabled", "1").strip() not in ("1", ""):
+            if row.get("enabled", "1").strip() not in SEC_STATUSES:
                 continue
             cik = (row.get("cik") or "").strip()
             if not cik:

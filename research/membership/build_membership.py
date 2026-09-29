@@ -32,6 +32,9 @@ UNIVERSE_PATH = r"C:\Projects\dashboards\stock-selection-dashboard\config\univer
 OUT_MEMBERSHIP = r"C:\Projects\dashboards\stock-selection-dashboard\research\membership\membership.csv"
 
 universe = pd.read_csv(UNIVERSE_PATH)
+# enabled=2 rows are GUESTS outside the S&P 500 (LYFT, УБР3 29.09.2026): not members, so not
+# reconstructed here. The assert keeps guarding the 503-name canon.
+universe = universe[universe["enabled"] == 1].reset_index(drop=True)
 assert universe.shape[0] == 503, f"Expected 503 rows, got {universe.shape[0]}"
 
 changes = pd.read_csv(f"{RAW_DIR}\\raw_changes_table.csv")
