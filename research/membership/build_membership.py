@@ -27,9 +27,9 @@ import re
 
 import pandas as pd
 
-RAW_DIR = r"C:\Projects\dashboards\stock-selection-dashboard\research\membership\raw"
-UNIVERSE_PATH = r"C:\Projects\dashboards\stock-selection-dashboard\config\universe.csv"
-OUT_MEMBERSHIP = r"C:\Projects\dashboards\stock-selection-dashboard\research\membership\membership.csv"
+RAW_DIR = r"C:\Projects\companies\stock-selection-dashboard\research\membership\raw"
+UNIVERSE_PATH = r"C:\Projects\companies\stock-selection-dashboard\config\universe.csv"
+OUT_MEMBERSHIP = r"C:\Projects\companies\stock-selection-dashboard\research\membership\membership.csv"
 
 universe = pd.read_csv(UNIVERSE_PATH)
 # enabled=2 rows are GUESTS outside the S&P 500 (LYFT, УБР3 29.09.2026): not members, so not
