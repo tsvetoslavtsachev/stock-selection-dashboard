@@ -4,17 +4,17 @@ concept,n_with_value_2024plus,pct_of_universe
 total_assets,503,1.0
 stockholders_equity,503,1.0
 operating_cash_flow,503,1.0
-net_income,500,0.994
-cash_and_equivalents,500,0.994
+cash_and_equivalents,502,0.998
+net_income,501,0.996
 shares_outstanding,500,0.994
 revenues,493,0.9801
-depreciation_amortization,474,0.9423
-buybacks,435,0.8648
-capex,435,0.8648
+depreciation_amortization,478,0.9503
+capex,439,0.8728
+buybacks,436,0.8668
 total_debt,424,0.8429
 current_liabilities,422,0.839
+dividends_paid,403,0.8012
 operating_income,397,0.7893
-dividends_paid,391,0.7773
 gross_profit,193,0.3837
 
 # section: per-year company count with a revenues fact
