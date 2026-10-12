@@ -40,6 +40,7 @@ import gzip
 import json
 import logging
 import sys
+from datetime import date
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -200,6 +201,53 @@ _DEBT_FREE: dict[str, str] = {
             "revolver undrawn (cache checked 12.10.2026)",
 }
 
+# Proven per-filer fallbacks (ПНЛ4, 13.10.2026). These tags are NOT the same line for
+# every filer, so they cannot join the global chains: across the names tagging both,
+# PaymentsOfOrdinaryDividends equals PaymentsOfDividendsCommonStock on every shared
+# period at 19 of 29 names, PaymentsForRepurchaseOfEquity equals ...OfCommonStock at
+# 19 of 31, DepreciationAmortizationAndAccretionNet equals
+# DepreciationDepletionAndAmortization at 12 of 37. So a fallback tag continues ONE
+# filer's chain, and only when that filer's own numbers prove it is the same line:
+#   (a) overlap: on the latest _FALLBACK_EVIDENCE_N periods (start, end) it shares with
+#       the chain (at least _FALLBACK_MIN_SHARED of them) every value agrees within
+#       _FALLBACK_TOL (AON buybacks, ACN dividends, WMT D&A ...); or, only when the
+#       chain has no fact at all,
+#   (b) identity (_IDENTITY_TAGS): net income = basic EPS x weighted basic shares on the
+#       latest _FALLBACK_EVIDENCE_N periods, dividends paid = dividend per share x
+#       weighted basic shares on the latest _IDENTITY_YEARS fiscal years, each within
+#       _IDENTITY_TOL (ITW tags only ProfitLoss; JNJ and PFE only
+#       PaymentsOfOrdinaryDividends).
+# A proven tag only CONTINUES the series (facts ending after the chain's last
+# period_end): a name whose chain is fresh gets nothing from it, no existing row changes.
+_FALLBACK_TAGS: dict[str, list[str]] = {
+    "buybacks": ["PaymentsForRepurchaseOfEquity"],
+    "capex": ["PaymentsForCapitalImprovements", "PaymentsToAcquireOtherPropertyPlantAndEquipment"],
+    "cash_and_equivalents": [
+        "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsIncludingDisposalGroupAndDiscontinuedOperations",
+        "Cash",
+    ],
+    "depreciation_amortization": [
+        "DepreciationAmortizationAndAccretionNet",
+        "CostOfGoodsAndServicesSoldDepreciationAndAmortization",
+    ],
+    "dividends_paid": ["PaymentsOfOrdinaryDividends"],
+    # after preferred dividends: the basic-EPS numerator (equal to NetIncomeLoss for
+    # a filer without preferred stock; BKNG tags its 2026 quarters only with it)
+    "net_income": ["NetIncomeLossAvailableToCommonStockholdersBasic"],
+}
+_IDENTITY_TAGS: dict[str, list[str]] = {
+    "net_income": ["NetIncomeLossAvailableToCommonStockholdersBasic", _NI_CONSOLIDATED_TAG],
+    "dividends_paid": ["PaymentsOfOrdinaryDividends"],
+}
+_FALLBACK_TOL = 0.005
+_FALLBACK_MIN_SHARED = 2
+_FALLBACK_EVIDENCE_N = 8
+_IDENTITY_TOL = 0.02
+_IDENTITY_YEARS = 4
+_EPS_TAG = "EarningsPerShareBasic"
+_DPS_TAGS = ("CommonStockDividendsPerShareCashPaid", "CommonStockDividendsPerShareDeclared")
+_WASO_TAG = "WeightedAverageNumberOfSharesOutstandingBasic"
+
 
 def load_universe(path: Path = _UNIVERSE_PATH) -> list[tuple[str, str]]:
     """Return [(ticker, cik10)] for rows with enabled in SEC_STATUSES (1 = S&P canon,
@@ -216,13 +264,25 @@ def load_universe(path: Path = _UNIVERSE_PATH) -> list[tuple[str, str]]:
     return out
 
 
+# Proxy statements are not financial statements. Their pay-versus-performance table
+# tags NetIncomeLoss with whatever the issuer calls net income there (TKO: 546M for
+# 2025 = its consolidated ProfitLoss, against 195M in the 10-K), sometimes in another
+# scale; 177 of the 876 proxy facts with a 10-K twin differ by more than 0.5%
+# (ПНЛ4, 13.10.2026). They carry no fiscal-year tag, which kept them out of the TTM
+# ladder only by accident, and a later filing date would let them win any
+# latest-filed read. So they never enter the panel.
+_PROXY_FORMS = frozenset({"DEF 14A", "DEFA14A", "DEFR14A", "PRE 14A", "PRER14A", "PREC14A", "DEFC14A"})
+
+
 def _facts_for_tag(facts: dict, namespace: str, tag: str, unit: str) -> list[dict]:
-    """Return the unit-block list for one namespace/tag/unit, or [] if absent."""
+    """Return the unit-block list for one namespace/tag/unit (proxy-statement facts
+    dropped, see _PROXY_FORMS), or [] if absent."""
     ns = facts.get(namespace, {})
     concept = ns.get(tag)
     if not concept:
         return []
-    return concept.get("units", {}).get(unit, []) or []
+    return [r for r in concept.get("units", {}).get(unit, []) or []
+            if r.get("form") not in _PROXY_FORMS]
 
 
 def _union_chain(facts: dict, namespace: str, tags: list[str], unit: str) -> tuple[list[str], list[dict]]:
@@ -506,6 +566,72 @@ def _extract_net_income(facts: dict) -> tuple[list[dict], int]:
     return out, refused
 
 
+def _period_values(records: list[dict]) -> dict[tuple, float]:
+    """(start, end) -> value from the latest filing that carries that period."""
+    out: dict[tuple, float] = {}
+    for r in sorted(records, key=lambda r: r["filed"]):
+        out[(r.get("start", ""), r["end"])] = r["val"]
+    return out
+
+
+def _agrees(expected: float, val: float, tol: float) -> bool:
+    return val == expected or (expected != 0 and abs(val / expected - 1) <= tol)
+
+
+def _overlap_proven(chain: list[dict], cand: list[dict]) -> bool:
+    ch, cd = _period_values(chain), _period_values(cand)
+    shared = sorted((k for k in cd if k in ch), key=lambda k: (k[1], k[0]))[-_FALLBACK_EVIDENCE_N:]
+    return (len(shared) >= _FALLBACK_MIN_SHARED
+            and all(_agrees(ch[k], cd[k], _FALLBACK_TOL) for k in shared))
+
+
+def _identity_proven(facts: dict, concept: str, cand: list[dict]) -> bool:
+    """cand == per-share amount x weighted basic shares (see _FALLBACK_TAGS)."""
+    shares = _period_values([r for r in _facts_for_tag(facts, "us-gaap", _WASO_TAG, _SHARES) if _valid(r)])
+    if concept == "net_income":
+        per_share = _period_values([r for r in _facts_for_tag(facts, "us-gaap", _EPS_TAG, "USD/shares") if _valid(r)])
+        n, annual = _FALLBACK_EVIDENCE_N, False
+    else:
+        per_share = {}
+        for tag in _DPS_TAGS:   # cash paid first, declared fills its gaps
+            for k, v in _period_values([r for r in _facts_for_tag(facts, "us-gaap", tag, "USD/shares")
+                                        if _valid(r)]).items():
+                per_share.setdefault(k, v)
+        n, annual = _IDENTITY_YEARS, True
+    vals = _period_values(cand)
+    keys = [k for k in vals if per_share.get(k) and shares.get(k)
+            and (not annual or (k[0] and (date.fromisoformat(k[1]) - date.fromisoformat(k[0])).days >= 350))]
+    keys = sorted(keys, key=lambda k: (k[1], k[0]))[-n:]
+    return (len(keys) >= _FALLBACK_MIN_SHARED
+            and all(_agrees(per_share[k] * shares[k], vals[k], _IDENTITY_TOL) for k in keys))
+
+
+def _continue_with_fallbacks(facts: dict, concept: str, chain: list[dict]) -> tuple[list[dict], list[str]]:
+    """Append the proven fallback tags' facts that end after the series' last
+    period_end (_FALLBACK_TAGS comment block). Returns (records, tags_admitted)."""
+    tags = list(_FALLBACK_TAGS.get(concept, []))
+    if not chain:
+        tags += [t for t in _IDENTITY_TAGS.get(concept, []) if t not in tags]
+    out, admitted = list(chain), []
+    for tag in tags:
+        cand = [r for r in _facts_for_tag(facts, "us-gaap", tag, _USD) if _valid(r)]
+        if not cand:
+            continue
+        if chain:
+            proven = _overlap_proven(chain, cand)
+        else:
+            proven = tag in _IDENTITY_TAGS.get(concept, []) and _identity_proven(facts, concept, cand)
+        if not proven:
+            continue
+        last = max((r["end"] for r in out), default="")
+        seen = {_fact_key(r) for r in out}
+        new = [r for r in cand if r["end"] > last and _fact_key(r) not in seen]
+        if new:
+            out.extend(new)
+            admitted.append(tag)
+    return out, admitted
+
+
 def _emit_rows(ticker: str, cik10: str, concept: str, unit: str, records: list[dict]) -> list[list]:
     """Turn raw fact records into panel rows. Instantaneous facts (no 'start')
     get an empty period_start. Records missing 'val'/'end'/'filed' are dropped."""
@@ -640,6 +766,10 @@ def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict,
             # Union the chain (tag migration of the SAME line across accounting
             # eras); de-duplicated by (start,end,filed), earlier tag wins a tie.
             _tags_used, recs = _union_chain(facts, namespace, tags, unit)
+        if concept in _FALLBACK_TAGS:
+            recs, admitted = _continue_with_fallbacks(facts, concept, recs)
+            for tag in admitted:
+                stats.setdefault("fallbacks", {}).setdefault(f"{concept}:{tag}", []).append(ticker)
 
         if recs:
             rows.extend(_emit_rows(ticker, cik10, concept, unit, recs))
@@ -752,6 +882,8 @@ def build(limit: int | None = None) -> dict:
     if stats.get("profitloss_refused"):
         logger.info("net_income: %d ProfitLoss facts refused (material NCI, no NCI fact to subtract)",
                     stats["profitloss_refused"])
+    for key, names in sorted(stats.get("fallbacks", {}).items()):
+        logger.info("proven fallback %s continues %d names: %s", key, len(names), names)
     if class_table:
         logger.info("shares_outstanding per class: %d records for %d tickers; %d unguarded; "
                     "weighted fallback %d %s; guard breaches kept %d %s",

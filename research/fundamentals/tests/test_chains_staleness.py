@@ -168,7 +168,7 @@ def test_g6_baseline_known_regressed_and_healed():
          "revenues_period_end": "2026-06-30", "lag_days": 181},
         {"ticker": "AAA", "concept": "gross_profit", "last_period_end": None,
          "revenues_period_end": "2026-06-30", "lag_days": None},
-    ])
+    ]).assign(reason="тест")
     rows = _full("AAA", "2026-06-30", skip=("gross_profit",),
                  override={"buybacks": "2023-12-31", "capex": "2025-09-30",
                            "total_debt": "2026-06-30"})
@@ -179,3 +179,126 @@ def test_g6_baseline_known_regressed_and_healed():
     rows = _full("AAA", "2026-06-30", skip=("gross_profit",), override={"buybacks": "2023-12-31"})
     g6 = validate_gates.g6_staleness(_panel(rows), base)
     assert g6["failures"] == [] and g6["healed"] == [("AAA", "capex")]
+
+
+# ---------------------------------------------------------------------------
+# Proven per-filer fallbacks (ПНЛ4) and the reason column of the G6 baseline
+# ---------------------------------------------------------------------------
+def _q(end, start, val, filed):
+    return _f(end, val, filed, start=start)
+
+
+_CHAIN = [_q("2024-03-31", "2024-01-01", 100.0, "2024-04-30"),
+          _q("2024-06-30", "2024-04-01", 110.0, "2024-07-30")]
+
+
+def test_fallback_continues_chain_after_proven_overlap_only_forward():
+    # ACN shape: the chain tag stops, the new tag re-files the old quarters (same
+    # numbers, later filing) and carries on. Only facts ending AFTER the chain's last
+    # period enter; the re-filed comparatives do not duplicate or shift anything.
+    ordinary = [_q("2024-03-31", "2024-01-01", 100.0, "2025-04-30"),
+                _q("2024-06-30", "2024-04-01", 110.2, "2025-07-30"),     # 0.18% off: agrees
+                _q("2025-06-30", "2025-04-01", 120.0, "2025-07-30")]
+    facts = _facts(PaymentsOfDividendsCommonStock=_CHAIN, PaymentsOfOrdinaryDividends=ordinary)
+    recs, admitted = build_panel._continue_with_fallbacks(facts, "dividends_paid", list(_CHAIN))
+    assert admitted == ["PaymentsOfOrdinaryDividends"]
+    assert [(r["end"], r["val"]) for r in recs] == [
+        ("2024-03-31", 100.0), ("2024-06-30", 110.0), ("2025-06-30", 120.0)]
+
+
+def test_fallback_refused_when_a_shared_period_differs():
+    # AIZ shape: DepreciationAmortizationAndAccretionNet is a wider number than the chain.
+    wide = [_q("2024-03-31", "2024-01-01", 100.0, "2025-04-30"),
+            _q("2024-06-30", "2024-04-01", 111.0, "2025-07-30"),         # 0.9% off
+            _q("2025-06-30", "2025-04-01", 120.0, "2025-07-30")]
+    facts = _facts(Depreciation=_CHAIN, DepreciationAmortizationAndAccretionNet=wide)
+    recs, admitted = build_panel._continue_with_fallbacks(facts, "depreciation_amortization", list(_CHAIN))
+    assert admitted == [] and len(recs) == 2
+
+
+def test_fallback_needs_two_shared_periods():
+    one = [_q("2024-06-30", "2024-04-01", 110.0, "2025-07-30"),
+           _q("2025-06-30", "2025-04-01", 120.0, "2025-07-30")]
+    facts = _facts(PaymentsForRepurchaseOfCommonStock=_CHAIN, PaymentsForRepurchaseOfEquity=one)
+    _recs, admitted = build_panel._continue_with_fallbacks(facts, "buybacks", list(_CHAIN))
+    assert admitted == []
+
+
+def _with_per_share(facts, per_share_tag, per_share, shares):
+    g = facts.setdefault("us-gaap", {})
+    g[per_share_tag] = {"units": {"USD/shares": per_share}}
+    g["WeightedAverageNumberOfSharesOutstandingBasic"] = {"units": {"shares": shares}}
+    return facts
+
+
+def test_identity_admits_profitloss_when_eps_times_shares_matches():
+    # ITW shape: no NetIncomeLoss at all, only ProfitLoss and no NCI fact, so the NCI
+    # rule refuses it; basic EPS x weighted shares proves it is the parent's income.
+    q = [("2026-03-31", "2026-01-01", 10.0), ("2026-06-30", "2026-04-01", 12.0)]
+    pl = [_q(e, s, v * 100, "2026-07-30") for e, s, v in q]
+    eps = [_q(e, s, v, "2026-07-30") for e, s, v in q]
+    sh = [_q(e, s, 100.0, "2026-07-30") for e, s, _ in q]
+    facts = _with_per_share(_facts(ProfitLoss=pl), "EarningsPerShareBasic", eps, sh)
+    recs, refused = build_panel._extract_net_income(facts)
+    assert recs == [] and refused == 2
+    recs, admitted = build_panel._continue_with_fallbacks(facts, "net_income", recs)
+    assert admitted == ["ProfitLoss"] and [r["val"] for r in recs] == [1000.0, 1200.0]
+
+    eps_off = [_q(e, s, v * 1.03, "2026-07-30") for e, s, v in q]                # 3% off
+    facts = _with_per_share(_facts(ProfitLoss=pl), "EarningsPerShareBasic", eps_off, sh)
+    _recs, admitted = build_panel._continue_with_fallbacks(facts, "net_income", [])
+    assert admitted == []
+
+
+def test_identity_for_dividends_uses_fiscal_years_only():
+    # JNJ shape: quarters drift with declared-vs-paid timing, fiscal years do not.
+    years = [("2024-12-31", "2024-01-01"), ("2025-12-31", "2025-01-01")]
+    paid = [_q(e, s, 400.0, "2026-02-15") for e, s in years] +            [_q("2026-03-31", "2026-01-01", 150.0, "2026-04-30")]                 # quarter: 1.5x
+    dps = [_q(e, s, 4.0, "2026-02-15") for e, s in years] +           [_q("2026-03-31", "2026-01-01", 1.0, "2026-04-30")]
+    sh = [_q(e, s, 100.0, "2026-02-15") for e, s in years] +          [_q("2026-03-31", "2026-01-01", 100.0, "2026-04-30")]
+    facts = _with_per_share(_facts(PaymentsOfOrdinaryDividends=paid),
+                            "CommonStockDividendsPerShareDeclared", dps, sh)
+    recs, admitted = build_panel._continue_with_fallbacks(facts, "dividends_paid", [])
+    assert admitted == ["PaymentsOfOrdinaryDividends"] and len(recs) == 3
+
+
+def test_identity_never_used_when_chain_has_facts():
+    # with a chain, only the overlap proof counts: no shared period -> nothing enters
+    facts = _with_per_share(
+        _facts(PaymentsOfDividendsCommonStock=_CHAIN,
+               PaymentsOfOrdinaryDividends=[_q("2025-12-31", "2025-01-01", 400.0, "2026-02-15")]),
+        "CommonStockDividendsPerShareDeclared",
+        [_q("2025-12-31", "2025-01-01", 4.0, "2026-02-15")],
+        [_q("2025-12-31", "2025-01-01", 100.0, "2026-02-15")])
+    _recs, admitted = build_panel._continue_with_fallbacks(facts, "dividends_paid", list(_CHAIN))
+    assert admitted == []
+
+
+def test_g6_fails_on_a_baseline_pair_without_reason():
+    base = pd.DataFrame([{"ticker": "AAA", "concept": "buybacks", "last_period_end": "2023-12-31",
+                          "revenues_period_end": "2026-06-30", "lag_days": 912, "reason": ""}])
+    rows = _full("AAA", "2026-06-30", override={"buybacks": "2023-12-31"})
+    g6 = validate_gates.g6_staleness(_panel(rows), base)
+    assert g6["failures"] == ["UNEXPLAINED AAA.buybacks: no reason in the baseline"]
+    g6 = validate_gates.g6_staleness(_panel(rows), base.assign(reason="в/спряло: последен факт 2023-12-31"))
+    assert g6["failures"] == []
+
+
+def test_write_baseline_keeps_reasons_and_leaves_new_pairs_empty(tmp_path):
+    path = tmp_path / "baseline.csv"
+    pd.DataFrame([{"ticker": "AAA", "concept": "buybacks", "last_period_end": "2023-12-31",
+                   "revenues_period_end": "2026-06-30", "lag_days": 912,
+                   "reason": "в/спряло"}]).to_csv(path, index=False)
+    rows = _full("AAA", "2026-06-30", override={"buybacks": "2023-12-31", "capex": "2025-09-30"})
+    assert validate_gates.write_staleness_baseline(_panel(rows), path) == 2
+    got = validate_gates.load_staleness_baseline(path).set_index("concept")["reason"].to_dict()
+    assert got == {"buybacks": "в/спряло", "capex": ""}
+
+
+def test_proxy_statement_facts_never_enter():
+    # TKO shape: the DEF 14A pay-versus-performance table re-tags FY net income with
+    # the consolidated figure, filed after the 10-K.
+    tenk = _f("2025-12-31", 195.0, "2026-02-25", start="2025-01-01", form="10-K")
+    proxy = _f("2025-12-31", 546.0, "2026-04-23", start="2025-01-01", form="DEF 14A")
+    recs, _ = build_panel._extract_net_income(_facts(NetIncomeLoss=[tenk, proxy]))
+    assert [r["val"] for r in recs] == [195.0]

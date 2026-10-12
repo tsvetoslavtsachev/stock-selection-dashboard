@@ -24,6 +24,11 @@ G6 — staleness ratchet (12.10.2026)
       each had when frozen. G6 FAILS (exit 1) on a stale pair missing from the baseline
       (NEW) or one whose last period_end moved backwards (REGRESSED); baseline pairs
       that caught up are reported as HEALED so the file only shrinks.
+    * every baseline pair carries a ``reason`` (ПНЛ4, 13.10.2026): its class and the
+      evidence (the tag and date of the last fact, the sector, the proof that failed).
+      A still-stale pair with an empty reason FAILS G6 (UNEXPLAINED), and
+      --write-baseline keeps the reasons of the pairs it carries over, so a newly
+      frozen gap stays red until someone writes down why it is there.
 
 CLI
     python -m research.fundamentals.validate_gates
@@ -62,7 +67,7 @@ _G2_THRESHOLD = 0.90
 _G2_REQUIRED = ["net_income", "stockholders_equity", "total_assets", "revenues"]
 _MEGACAPS = ["AAPL", "MSFT", "JPM", "XOM", "JNJ"]
 _STALE_DAYS = 100   # same threshold as valuation-organ scripts/build_cash_table.STALE_DAYS
-_BASELINE_COLUMNS = ["ticker", "concept", "last_period_end", "revenues_period_end", "lag_days"]
+_BASELINE_COLUMNS = ["ticker", "concept", "last_period_end", "revenues_period_end", "lag_days", "reason"]
 
 _ALL_CONCEPTS = sorted(pit.STOCK_CONCEPTS | pit.FLOW_CONCEPTS)
 
@@ -195,24 +200,31 @@ def staleness_table(panel: pd.DataFrame) -> pd.DataFrame:
                 rows.append({"ticker": ticker, "concept": c,
                              "last_period_end": None if pd.isna(end) else end.date().isoformat(),
                              "revenues_period_end": rev.date().isoformat(),
-                             "lag_days": lag})
+                             "lag_days": lag, "reason": ""})
     return pd.DataFrame(rows, columns=_BASELINE_COLUMNS)
 
 
 def load_staleness_baseline(path: Path = _STALENESS_BASELINE_PATH) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame(columns=_BASELINE_COLUMNS)
-    return pd.read_csv(path, dtype={"ticker": str, "concept": str, "last_period_end": str})
+    base = pd.read_csv(path, dtype={"ticker": str, "concept": str, "last_period_end": str,
+                                    "reason": str})
+    if "reason" not in base.columns:
+        base["reason"] = ""
+    base["reason"] = base["reason"].fillna("")
+    return base
 
 
 def g6_staleness(panel: pd.DataFrame, baseline: pd.DataFrame) -> dict:
     """Compare the panel's stale pairs with the frozen baseline.
-    Returns {"stale", "new", "regressed", "healed", "failures"}."""
+    Returns {"stale", "new", "regressed", "unexplained", "healed", "failures"}."""
     stale = staleness_table(panel)
     base = {(r.ticker, r.concept): (None if pd.isna(r.last_period_end) else r.last_period_end)
             for r in baseline.itertuples()}
     stale = stale.astype(object).where(stale.notna(), None)   # absent -> None, not NaN
-    new, regressed = [], []
+    reasons = {(r.ticker, r.concept): str(getattr(r, "reason", "") or "").strip()
+               for r in baseline.itertuples()}
+    new, regressed, unexplained = [], [], []
     for r in stale.itertuples():
         k = (r.ticker, r.concept)
         if k not in base:
@@ -221,6 +233,8 @@ def g6_staleness(panel: pd.DataFrame, baseline: pd.DataFrame) -> dict:
         was = base[k]
         if was is not None and (r.last_period_end is None or r.last_period_end < was):
             regressed.append(r)
+        if not reasons.get(k):
+            unexplained.append(r)
     now = {(r.ticker, r.concept) for r in stale.itertuples()}
     healed = sorted(k for k in base if k not in now)
 
@@ -233,22 +247,29 @@ def g6_staleness(panel: pd.DataFrame, baseline: pd.DataFrame) -> dict:
     ] + [
         f"REGRESSED {r.ticker}.{r.concept}: last {_last(r.last_period_end)} < baseline {base[(r.ticker, r.concept)]}"
         for r in regressed
+    ] + [
+        f"UNEXPLAINED {r.ticker}.{r.concept}: no reason in the baseline"
+        for r in unexplained
     ]
-    return {"stale": stale, "new": new, "regressed": regressed, "healed": healed,
-            "failures": failures}
+    return {"stale": stale, "new": new, "regressed": regressed, "unexplained": unexplained,
+            "healed": healed, "failures": failures}
 
 
 def write_staleness_baseline(panel: pd.DataFrame, path: Path = _STALENESS_BASELINE_PATH) -> int:
     stale = staleness_table(panel).sort_values(["concept", "ticker"])
+    old = load_staleness_baseline(path)
+    keep = {(r.ticker, r.concept): r.reason for r in old.itertuples()}
+    stale["reason"] = [keep.get((r.ticker, r.concept), "") for r in stale.itertuples()]
     stale.to_csv(path, index=False)
     return len(stale)
 
 
 def _report_g6(g6: dict) -> None:
     logger.info("=== G6 staleness (concept > %dd behind revenues, or absent) ===", _STALE_DAYS)
-    logger.info("  stale pairs now: %d (baseline-known: %d, new: %d, regressed: %d, healed: %d)",
+    logger.info("  stale pairs now: %d (baseline-known: %d, new: %d, regressed: %d, "
+                "unexplained: %d, healed: %d)",
                 len(g6["stale"]), len(g6["stale"]) - len(g6["new"]),
-                len(g6["new"]), len(g6["regressed"]), len(g6["healed"]))
+                len(g6["new"]), len(g6["regressed"]), len(g6["unexplained"]), len(g6["healed"]))
     if g6["healed"]:
         logger.info("  HEALED (refreeze the baseline to lock them in): %s",
                     ", ".join(f"{t}.{c}" for t, c in g6["healed"][:40]))
