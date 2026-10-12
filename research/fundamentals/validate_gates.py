@@ -14,8 +14,21 @@ G3 — megacap ROE spot-check
       (yfinance). yfinance uses different definitions, so +/- 30% is fine; a 5x gap
       is a red flag. Prints a table.
 
+G6 — staleness ratchet (12.10.2026)
+    * for every (ticker, concept): how far the concept's latest period_end trails the
+      same ticker's latest ``revenues`` period_end. More than _STALE_DAYS behind, or
+      absent altogether, is STALE: a tag chain stopped following the filer (ORCL debt
+      stuck at 2022-05-31, AVGO net income at 2024-11-03, before the chains widened).
+    * research/data/staleness_baseline.csv lists the KNOWN gaps (legit ones such as a
+      buyback program that ended, and not-yet-fixed tag gaps) with the last period_end
+      each had when frozen. G6 FAILS (exit 1) on a stale pair missing from the baseline
+      (NEW) or one whose last period_end moved backwards (REGRESSED); baseline pairs
+      that caught up are reported as HEALED so the file only shrinks.
+
 CLI
     python -m research.fundamentals.validate_gates
+    python -m research.fundamentals.validate_gates --panel OTHER.csv.gz   # G6 only
+    python -m research.fundamentals.validate_gates --write-baseline       # refreeze G6
 """
 
 from __future__ import annotations
@@ -41,12 +54,15 @@ _UNIVERSE_PATH = _REPO_ROOT / "config" / "universe.csv"
 _PANEL_PATH = _REPO_ROOT / "research" / "data" / "edgar_pit_panel.csv.gz"
 _COVERAGE_PATH = _REPO_ROOT / "research" / "data" / "coverage_report.csv"
 _RANKS_PATH = _REPO_ROOT / "data" / "processed" / "ranks.csv"
+_STALENESS_BASELINE_PATH = _REPO_ROOT / "research" / "data" / "staleness_baseline.csv"
 
 _UNIVERSE_N = 503
 _RECENT_YEAR = 2024
 _G2_THRESHOLD = 0.90
 _G2_REQUIRED = ["net_income", "stockholders_equity", "total_assets", "revenues"]
 _MEGACAPS = ["AAPL", "MSFT", "JPM", "XOM", "JNJ"]
+_STALE_DAYS = 100   # same threshold as valuation-organ scripts/build_cash_table.STALE_DAYS
+_BASELINE_COLUMNS = ["ticker", "concept", "last_period_end", "revenues_period_end", "lag_days"]
 
 _ALL_CONCEPTS = sorted(pit.STOCK_CONCEPTS | pit.FLOW_CONCEPTS)
 
@@ -157,6 +173,95 @@ def g3_roe_spotcheck(panel: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# G6 — staleness ratchet
+# ---------------------------------------------------------------------------
+def staleness_table(panel: pd.DataFrame) -> pd.DataFrame:
+    """Every STALE (ticker, concept): latest period_end more than _STALE_DAYS behind
+    the ticker's latest revenues period_end, or no rows at all (last_period_end empty).
+    Tickers with no revenues have no yardstick and are skipped."""
+    last = panel.groupby(["ticker", "concept"])["period_end"].max().unstack()
+    if "revenues" not in last.columns:
+        return pd.DataFrame(columns=_BASELINE_COLUMNS)
+    last = last[last["revenues"].notna()]
+    concepts = [c for c in _ALL_CONCEPTS if c != "revenues"]
+    last = last.reindex(columns=["revenues"] + concepts)
+    rows = []
+    for ticker, r in last.iterrows():
+        rev = r["revenues"]
+        for c in concepts:
+            end = r[c]
+            lag = None if pd.isna(end) else (rev - end).days
+            if lag is None or lag > _STALE_DAYS:
+                rows.append({"ticker": ticker, "concept": c,
+                             "last_period_end": None if pd.isna(end) else end.date().isoformat(),
+                             "revenues_period_end": rev.date().isoformat(),
+                             "lag_days": lag})
+    return pd.DataFrame(rows, columns=_BASELINE_COLUMNS)
+
+
+def load_staleness_baseline(path: Path = _STALENESS_BASELINE_PATH) -> pd.DataFrame:
+    if not path.exists():
+        return pd.DataFrame(columns=_BASELINE_COLUMNS)
+    return pd.read_csv(path, dtype={"ticker": str, "concept": str, "last_period_end": str})
+
+
+def g6_staleness(panel: pd.DataFrame, baseline: pd.DataFrame) -> dict:
+    """Compare the panel's stale pairs with the frozen baseline.
+    Returns {"stale", "new", "regressed", "healed", "failures"}."""
+    stale = staleness_table(panel)
+    base = {(r.ticker, r.concept): (None if pd.isna(r.last_period_end) else r.last_period_end)
+            for r in baseline.itertuples()}
+    stale = stale.astype(object).where(stale.notna(), None)   # absent -> None, not NaN
+    new, regressed = [], []
+    for r in stale.itertuples():
+        k = (r.ticker, r.concept)
+        if k not in base:
+            new.append(r)
+            continue
+        was = base[k]
+        if was is not None and (r.last_period_end is None or r.last_period_end < was):
+            regressed.append(r)
+    now = {(r.ticker, r.concept) for r in stale.itertuples()}
+    healed = sorted(k for k in base if k not in now)
+
+    def _last(v):
+        return v if v else "absent"
+
+    failures = [
+        f"NEW {r.ticker}.{r.concept}: last {_last(r.last_period_end)}, revenues {r.revenues_period_end}"
+        for r in new
+    ] + [
+        f"REGRESSED {r.ticker}.{r.concept}: last {_last(r.last_period_end)} < baseline {base[(r.ticker, r.concept)]}"
+        for r in regressed
+    ]
+    return {"stale": stale, "new": new, "regressed": regressed, "healed": healed,
+            "failures": failures}
+
+
+def write_staleness_baseline(panel: pd.DataFrame, path: Path = _STALENESS_BASELINE_PATH) -> int:
+    stale = staleness_table(panel).sort_values(["concept", "ticker"])
+    stale.to_csv(path, index=False)
+    return len(stale)
+
+
+def _report_g6(g6: dict) -> None:
+    logger.info("=== G6 staleness (concept > %dd behind revenues, or absent) ===", _STALE_DAYS)
+    logger.info("  stale pairs now: %d (baseline-known: %d, new: %d, regressed: %d, healed: %d)",
+                len(g6["stale"]), len(g6["stale"]) - len(g6["new"]),
+                len(g6["new"]), len(g6["regressed"]), len(g6["healed"]))
+    if g6["healed"]:
+        logger.info("  HEALED (refreeze the baseline to lock them in): %s",
+                    ", ".join(f"{t}.{c}" for t, c in g6["healed"][:40]))
+    if g6["failures"]:
+        for f in g6["failures"][:60]:
+            logger.error("  G6 FAIL %s", f)
+        if len(g6["failures"]) > 60:
+            logger.error("  ... and %d more", len(g6["failures"]) - 60)
+    else:
+        logger.info("G6 PASS: no stale concept beyond the baseline")
+
+
+# ---------------------------------------------------------------------------
 # Runner
 # ---------------------------------------------------------------------------
 def run() -> dict:
@@ -164,8 +269,12 @@ def run() -> dict:
         raise SystemExit(f"panel not found: {_PANEL_PATH} (run build_panel first)")
 
     logger.info("Loading panel %s ...", _PANEL_PATH)
-    panel = pit.load_panel(_PANEL_PATH)
-    panel = panel[panel["ticker"].isin(_canon_symbols())]     # guests (enabled=2) are not S&P coverage
+    full = pit.load_panel(_PANEL_PATH)
+    # --- G6 --- (every paneled name, guests included: the organ reads them all)
+    g6 = g6_staleness(full, load_staleness_baseline())
+    _report_g6(g6)
+
+    panel = full[full["ticker"].isin(_canon_symbols())]     # guests (enabled=2) are not S&P coverage
     universe_n = _universe_size()
 
     # --- G2 ---
@@ -193,18 +302,32 @@ def run() -> dict:
         "g2_failures": failures,
         "coverage_path": str(_COVERAGE_PATH),
         "g3": g3,
+        "g6_failures": g6["failures"],
     }
 
 
 def main(argv: list[str] | None = None) -> int:
-    argparse.ArgumentParser(description="Run G2/G3 validation gates.").parse_args(argv)
+    ap = argparse.ArgumentParser(description="Run G2/G3/G6 validation gates.")
+    ap.add_argument("--panel", type=Path, default=None,
+                    help="run G6 only, against this panel instead of the built one")
+    ap.add_argument("--write-baseline", action="store_true",
+                    help="refreeze research/data/staleness_baseline.csv from the built panel")
+    args = ap.parse_args(argv)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
-    run()
-    return 0
+    if args.write_baseline:
+        n = write_staleness_baseline(pit.load_panel(_PANEL_PATH))
+        logger.info("G6 baseline frozen: %d known stale pairs -> %s", n, _STALENESS_BASELINE_PATH)
+        return 0
+    if args.panel is not None:
+        g6 = g6_staleness(pit.load_panel(args.panel), load_staleness_baseline())
+        _report_g6(g6)
+        return 1 if g6["failures"] else 0
+    res = run()
+    return 1 if res["g6_failures"] else 0
 
 
 if __name__ == "__main__":

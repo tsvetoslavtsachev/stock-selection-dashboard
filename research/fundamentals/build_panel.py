@@ -20,10 +20,11 @@ research/data/edgar_pit_panel.csv.gz with the Interface-P columns, exactly:
 * Units: only USD (and ``shares`` for share counts) are kept; a fact in a foreign
   presentation currency is skipped and counted.
 
-One synthetic concept, ``total_debt``, is assembled by SUMMING LongTermDebtNoncurrent
-and LongTermDebtCurrent at a matching (period_end, filed) key, falling back to the
-single-tag chain LongTermDebt / DebtLongtermAndShorttermCombinedAmount when the split
-pair is unavailable.
+One synthetic concept, ``total_debt``, is assembled by SUMMING a noncurrent+current
+tag pair at a matching (period_end, filed) key (four pairs, in priority order), then
+filling the keys no pair covered from the single-tag chain LongTermDebt /
+DebtLongtermAndShorttermCombinedAmount (unioned, not first-tag-wins). Names that are
+genuinely debt-free and tag no debt line at all (_DEBT_FREE) get an explicit 0.
 
 CLI
 ---
@@ -92,7 +93,10 @@ _CONCEPTS: dict[str, tuple[str, list[str], str]] = {
     ], _USD),
     "gross_profit": ("us-gaap", ["GrossProfit"], _USD),
     "operating_income": ("us-gaap", ["OperatingIncomeLoss"], _USD),
-    "net_income": ("us-gaap", ["NetIncomeLoss"], _USD),
+    # Extracted by _extract_net_income, not the generic union: ProfitLoss includes
+    # the noncontrolling interest, so it may only stand in for NetIncomeLoss under
+    # the rules documented there.
+    "net_income": ("us-gaap", ["NetIncomeLoss", "ProfitLoss"], _USD),
     "stockholders_equity": ("us-gaap", [
         "StockholdersEquity",
         "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
@@ -144,6 +148,22 @@ _SHARES_TAGS = (
     ("us-gaap", "CommonStockSharesOutstanding"),
 )
 
+# net_income: NetIncomeLoss (attributable to the parent) first; ProfitLoss (incl. the
+# noncontrolling interest) fills only the keys NetIncomeLoss does not carry. AVGO
+# tags its whole income statement with ProfitLoss from FY2025 on (NetIncomeLoss
+# stops at 2024-11-03), so without it the TTM ladder ran on a stale year and P/E
+# read 577. But blind union is wrong where the NCI is material (IBKR: ProfitLoss is
+# about 12x NetIncomeLoss; FCX about 1.75x), so a ProfitLoss fact is admitted only
+#   (a) minus NetIncomeLossAttributableToNoncontrollingInterest at the same key, or
+#   (b) as-is, when the issuer's own filings show the two tags agree within
+#       _NCI_IMMATERIAL on its latest _NCI_EVIDENCE_N shared keys.
+# Otherwise the key stays empty (honest gap, caught by the staleness gate).
+_NI_TAG = "NetIncomeLoss"
+_NI_CONSOLIDATED_TAG = "ProfitLoss"
+_NCI_TAG = "NetIncomeLossAttributableToNoncontrollingInterest"
+_NCI_IMMATERIAL = 0.02
+_NCI_EVIDENCE_N = 8
+
 # Sub-million sentinel floor for shares_outstanding. A cover-page share count
 # below this is never a real issuer: it is a spin-off placeholder (FOXA = 1.0,
 # 2019), a zero-class sentinel (CVNA/DDOG/HOOD/SPG/TAP = 0.0), or a cover-page
@@ -152,9 +172,33 @@ _SHARES_TAGS = (
 # is clean; the valuation-organ М32 <1e6 guard stays as belt-and-suspenders.
 SHARES_SENTINEL_MIN = 1_000_000
 
-# total_debt split pair (summed at matching period_end+filed) then fallback chain.
-_DEBT_SPLIT = ("LongTermDebtNoncurrent", "LongTermDebtCurrent")
+# total_debt: noncurrent+current PAIRS (summed within one filing), priority order,
+# then the single-tag chain for keys no pair covered. Issuers move between these
+# presentations over time: ORCL went to LongTermNotesAndLoans + NotesPayableCurrent
+# (its only LongTermDebt fact is a stray 0 at 2022-05-31), MU to
+# LongTermDebtAndCapitalLeaseObligations + DebtCurrent (LongTermDebt stops
+# 2025-11-27), SMCI to DebtLongtermAndShorttermCombinedAmount (LongTermDebt stops
+# 2023-06-30). Same ladder as valuation-organ scripts/build_cash_table.DEBT_FALLBACK,
+# except the combined tag stays LAST here so names already carried by a pair or by
+# LongTermDebt keep their long-term-debt definition.
+_DEBT_PAIRS = (
+    ("LongTermDebtNoncurrent", "LongTermDebtCurrent"),
+    ("LongTermNotesAndLoans", "NotesPayableCurrent"),
+    ("LongTermDebtAndCapitalLeaseObligations", "DebtCurrent"),
+    # its own current-portion partner: 53 names whose debt went stale had this
+    # pair on their latest balance sheet (12.10.2026)
+    ("LongTermDebtAndCapitalLeaseObligations", "LongTermDebtAndCapitalLeaseObligationsCurrent"),
+)
 _DEBT_FALLBACK_TAGS = ["LongTermDebt", "DebtLongtermAndShorttermCombinedAmount"]
+
+# Names that are genuinely debt-free and therefore tag NO debt line: their
+# total_debt is an explicit 0 at every balance-sheet key (the Assets facts), not a
+# hole that reads like missing data. Each entry carries its evidence; a declared
+# name that starts tagging nonzero debt is logged so the declaration gets revisited.
+_DEBT_FREE: dict[str, str] = {
+    "PLTR": "no borrowings tagged since LongTermDebtNoncurrent=0 at 2021-12-31; "
+            "revolver undrawn (cache checked 12.10.2026)",
+}
 
 
 def load_universe(path: Path = _UNIVERSE_PATH) -> list[tuple[str, str]]:
@@ -179,15 +223,6 @@ def _facts_for_tag(facts: dict, namespace: str, tag: str, unit: str) -> list[dic
     if not concept:
         return []
     return concept.get("units", {}).get(unit, []) or []
-
-
-def _first_populated_tag(facts: dict, namespace: str, tags: list[str], unit: str) -> tuple[str | None, list[dict]]:
-    """Walk the fallback chain; return the first (tag, records) that has data."""
-    for tag in tags:
-        recs = _facts_for_tag(facts, namespace, tag, unit)
-        if recs:
-            return tag, recs
-    return None, []
 
 
 def _union_chain(facts: dict, namespace: str, tags: list[str], unit: str) -> tuple[list[str], list[dict]]:
@@ -253,6 +288,57 @@ def _extract_shares(facts: dict) -> tuple[list[dict], int]:
     return out, dropped
 
 
+def _fact_key(r: dict) -> tuple:
+    return (r.get("start", ""), r["end"], r["filed"])
+
+
+def _valid(r: dict) -> bool:
+    return "end" in r and "filed" in r and "val" in r
+
+
+def _extract_net_income(facts: dict) -> tuple[list[dict], int]:
+    """NetIncomeLoss records, with ProfitLoss filling the keys it does not carry
+    under the NCI rules above (_NI_CONSOLIDATED_TAG comment block).
+    Returns (records, n_profitloss_keys_refused)."""
+    ni = [r for r in _facts_for_tag(facts, "us-gaap", _NI_TAG, _USD) if _valid(r)]
+    out: list[dict] = []
+    ni_by_key: dict[tuple, float] = {}
+    for r in ni:
+        k = _fact_key(r)
+        if k in ni_by_key:
+            continue
+        ni_by_key[k] = r["val"]
+        out.append(r)
+
+    pl = [r for r in _facts_for_tag(facts, "us-gaap", _NI_CONSOLIDATED_TAG, _USD) if _valid(r)]
+    if not pl:
+        return out, 0
+    nci = {_fact_key(r): r["val"]
+           for r in _facts_for_tag(facts, "us-gaap", _NCI_TAG, _USD) if _valid(r)}
+
+    shared = sorted((r for r in pl if ni_by_key.get(_fact_key(r))),
+                    key=lambda r: (r["end"], r["filed"]))[-_NCI_EVIDENCE_N:]
+    devs = sorted(abs(r["val"] / ni_by_key[_fact_key(r)] - 1) for r in shared)
+    immaterial = bool(devs) and devs[len(devs) // 2] <= _NCI_IMMATERIAL
+
+    refused = 0
+    seen = set(ni_by_key)
+    for r in pl:
+        k = _fact_key(r)
+        if k in seen:
+            continue
+        if k in nci:
+            val = r["val"] - nci[k]
+        elif immaterial:
+            val = r["val"]
+        else:
+            refused += 1
+            continue
+        seen.add(k)
+        out.append({**r, "val": val})
+    return out, refused
+
+
 def _emit_rows(ticker: str, cik10: str, concept: str, unit: str, records: list[dict]) -> list[list]:
     """Turn raw fact records into panel rows. Instantaneous facts (no 'start')
     get an empty period_start. Records missing 'val'/'end'/'filed' are dropped."""
@@ -276,21 +362,13 @@ def _emit_rows(ticker: str, cik10: str, concept: str, unit: str, records: list[d
     return rows
 
 
-def _extract_total_debt(facts: dict) -> list[dict]:
-    """Assemble synthetic total_debt records.
-
-    Preference 1 — SUM the split pair (LongTermDebtNoncurrent + LongTermDebtCurrent)
-    at a matching (end, filed, accn) key so we add only figures from the SAME
-    filing snapshot (never mix a noncurrent value from one amendment with a current
-    value from another). A period that has only ONE leg of the pair is skipped here
-    and left to the fallback (a lone noncurrent figure is not total debt).
-
-    Preference 2 — the single-tag fallback chain (LongTermDebt / combined), used
-    only for (end, filed) keys the split pair did not already produce, so a company
-    that reports both does not double-count.
-    """
-    noncur = _facts_for_tag(facts, "us-gaap", _DEBT_SPLIT[0], _USD)
-    cur = _facts_for_tag(facts, "us-gaap", _DEBT_SPLIT[1], _USD)
+def _sum_pair(facts: dict, pair: tuple[str, str]) -> list[dict]:
+    """SUM one noncurrent+current pair at a matching (end, filed, accn) key, so we add
+    only figures from the SAME filing snapshot (never a noncurrent value from one
+    amendment with a current value from another). A key with only ONE leg is
+    skipped (a lone noncurrent figure is not total debt)."""
+    noncur = _facts_for_tag(facts, "us-gaap", pair[0], _USD)
+    cur = _facts_for_tag(facts, "us-gaap", pair[1], _USD)
 
     def _key(r):
         return (r.get("end"), r.get("filed"), r.get("accn"))
@@ -300,13 +378,13 @@ def _extract_total_debt(facts: dict) -> list[dict]:
         cur_by_key.setdefault(_key(r), r)
 
     out: list[dict] = []
-    produced_end_filed: set[tuple] = set()
     for rn in noncur:
-        k = _key(rn)
-        rc = cur_by_key.get(k)
-        if rc is None:
+        if "end" not in rn or "filed" not in rn or "val" not in rn:
             continue
-        merged = {
+        rc = cur_by_key.get(_key(rn))
+        if rc is None or "val" not in rc:
+            continue
+        out.append({
             "end": rn["end"],
             "filed": rn["filed"],
             "val": rn["val"] + rc["val"],
@@ -314,17 +392,55 @@ def _extract_total_debt(facts: dict) -> list[dict]:
             "fy": rn.get("fy", ""),
             "fp": rn.get("fp", ""),
             "accn": rn.get("accn", ""),
-        }
-        out.append(merged)
-        produced_end_filed.add((rn["end"], rn["filed"]))
+        })
+    return out
 
-    # Fallback chain for (end, filed) keys the split pair did not cover.
-    _tag, fb_recs = _first_populated_tag(facts, "us-gaap", _DEBT_FALLBACK_TAGS, _USD)
+
+def _extract_total_debt(facts: dict) -> list[dict]:
+    """Assemble synthetic total_debt records.
+
+    Preference 1 — the _DEBT_PAIRS in order, each summed within one filing
+    (_sum_pair). A later pair only fills (end, filed) keys an earlier pair did not.
+
+    Preference 2 — the single-tag chain (LongTermDebt, then the combined tag),
+    UNIONED (not first-tag-wins) and used only for (end, filed) keys no pair
+    produced, so a company that reports several presentations does not
+    double-count, and one stray LongTermDebt fact (ORCL: a single 0 at 2022-05-31)
+    can no longer shut the combined tag out for good.
+    """
+    out: list[dict] = []
+    produced_end_filed: set[tuple] = set()
+    for pair in _DEBT_PAIRS:
+        for r in _sum_pair(facts, pair):
+            k = (r["end"], r["filed"])
+            if k in produced_end_filed:
+                continue
+            out.append(r)
+            produced_end_filed.add(k)
+
+    _tags, fb_recs = _union_chain(facts, "us-gaap", _DEBT_FALLBACK_TAGS, _USD)
     for r in fb_recs:
-        if (r.get("end"), r.get("filed")) in produced_end_filed:
+        if (r["end"], r["filed"]) in produced_end_filed:
             continue
         out.append(r)
 
+    return out
+
+
+def _debt_free_zeros(facts: dict, covered: set[tuple]) -> list[dict]:
+    """Explicit total_debt = 0 for a declared debt-free name, one record per
+    balance-sheet key (the Assets facts) that real debt facts do not cover."""
+    out: list[dict] = []
+    seen: set[tuple] = set(covered)
+    for r in _facts_for_tag(facts, "us-gaap", "Assets", _USD):
+        if "end" not in r or "filed" not in r:
+            continue
+        k = (r["end"], r["filed"])
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append({"end": r["end"], "filed": r["filed"], "val": 0,
+                    "form": r.get("form", ""), "fy": r.get("fy", ""), "fp": r.get("fp", "")})
     return out
 
 
@@ -341,6 +457,10 @@ def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict) -> list[
             if n_drop:
                 stats["shares_sentinels_dropped"] = stats.get("shares_sentinels_dropped", 0) + n_drop
                 stats.setdefault("shares_sentinel_names", {})[ticker] = n_drop
+        elif concept == "net_income":
+            recs, n_refused = _extract_net_income(facts)
+            if n_refused:
+                stats["profitloss_refused"] = stats.get("profitloss_refused", 0) + n_refused
         else:
             # Union the chain (tag migration of the SAME line across accounting
             # eras); de-duplicated by (start,end,filed), earlier tag wins a tie.
@@ -353,6 +473,13 @@ def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict) -> list[
 
     # Synthetic total_debt.
     debt_recs = _extract_total_debt(facts)
+    if ticker in _DEBT_FREE:
+        nonzero = [r for r in debt_recs if r["val"]]
+        if nonzero:
+            last = max(nonzero, key=lambda r: r["end"])
+            logger.warning("%s is declared debt-free but tags debt %s at %s; revisit _DEBT_FREE",
+                           ticker, last["val"], last["end"])
+        debt_recs = debt_recs + _debt_free_zeros(facts, {(r["end"], r["filed"]) for r in debt_recs})
     if debt_recs:
         rows.extend(_emit_rows(ticker, cik10, "total_debt", _USD, debt_recs))
     else:
@@ -437,6 +564,9 @@ def build(limit: int | None = None) -> dict:
     worst = sorted(stats["missing_concept"].items(), key=lambda kv: -kv[1])[:5]
     if worst:
         logger.info("Concepts missing for most companies: %s", worst)
+    if stats.get("profitloss_refused"):
+        logger.info("net_income: %d ProfitLoss facts refused (material NCI, no NCI fact to subtract)",
+                    stats["profitloss_refused"])
     if stats["shares_sentinels_dropped"]:
         logger.info(
             "shares_outstanding: %d sub-1e6 sentinel facts dropped at source across %d names: %s",
