@@ -41,7 +41,7 @@ def _git(repo, *args) -> str | None:
     try:
         out = subprocess.run(
             ["git", "-C", str(repo), *args],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15,
         )
     except Exception:  # noqa: BLE001 - git absent / path bad -> degrade, never crash
         return None

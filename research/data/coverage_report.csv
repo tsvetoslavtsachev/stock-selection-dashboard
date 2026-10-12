@@ -6,9 +6,9 @@ stockholders_equity,503,1.0
 operating_cash_flow,503,1.0
 net_income,500,0.994
 cash_and_equivalents,500,0.994
+shares_outstanding,500,0.994
 revenues,493,0.9801
 depreciation_amortization,474,0.9423
-shares_outstanding,464,0.9225
 buybacks,435,0.8648
 capex,435,0.8648
 total_debt,424,0.8429

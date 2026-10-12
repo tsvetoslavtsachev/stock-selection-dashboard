@@ -288,6 +288,173 @@ def _extract_shares(facts: dict) -> tuple[list[dict], int]:
     return out, dropped
 
 
+# ---------------------------------------------------------------------------
+# Per-class share counts (ПНЛ1, 12.10.2026)
+# For the multi-class issuers whose cover-page count exists ONLY per class (the
+# companyfacts API drops it, see the _SHARES_TAGS comment), the count is read from
+# the filing's own XBRL instance (collect_edgar_classes.py -> research/cache/
+# edgar_classes/) and summed into ONE economic count in units of the class the
+# ticker trades in, by the coefficient table share_classes.csv. Every coefficient
+# there carries its source; it is data with evidence, not a literal here.
+#   coef = a number   -> that many unit-class shares per share of the member
+#                        (BRK class A = 1500 B; ERIE class B = 2400 A; a class with
+#                        no claim on the parent's earnings, e.g. the Up-C voting
+#                        class B of CVNA/TKO, = 0)
+#   coef = eps_ratio  -> read per filing as the member's diluted EPS over the unit
+#                        class's (Visa B-1/B-2/B-3/C, whose conversion rates move
+#                        every quarter with the litigation escrow)
+# The coefficient is the CONVERSION rate (what the unit class's diluted EPS counts),
+# not the share of undistributed earnings: an ERIE class B share takes 150x the
+# class A earnings under the two-class method but converts into 2,400 A, and the
+# class A diluted EPS divides by the converted count.
+# GUARD (the company's own denominator): ref = NetIncomeLoss / diluted EPS of the
+# unit class (basic when no diluted is tagged, as at BRK) over the longest period
+# ending at the filing's period end. An economic count outside CLASS_GUARD_BAND of
+# ref is logged (stats class_guard_breach) and KEPT: measured on the 36 names, most
+# breaches are the guard's own blind spots (a diluted EPS that exchanges Up-C units
+# with the NCI added back, ProfitLoss carrying LP units, a fiscal-year average after
+# heavy buybacks), and the point-in-time cover count is the better number. Only a
+# ticker declared role=weighted in the table (with its evidence) carries the
+# company's weighted count instead (the exact diluted, else basic, weighted count
+# when it agrees with ref within CLASS_FALLBACK_AGREE, else ref): ACN, whose cover
+# count includes the Class A shares the registrant itself holds. With
+# |EPS| < CLASS_GUARD_MIN_EPS or a loss the ref is too coarse and the record goes
+# through unguarded (counted).
+_CLASS_TABLE_PATH = Path(__file__).resolve().parent / "share_classes.csv"
+_CLASS_CACHE_DIR = _REPO_ROOT / "research" / "cache" / "edgar_classes"
+CLASS_GUARD_BAND = (0.90, 1.07)
+CLASS_GUARD_MIN_EPS = 0.50
+CLASS_FALLBACK_AGREE = 0.02
+EPS_RATIO = "eps_ratio"
+
+
+def load_class_table(path: Path = _CLASS_TABLE_PATH) -> dict[str, dict]:
+    """ticker -> {"coef": {member: float | EPS_RATIO}, "unit": member, "eps": member|None,
+    "weighted": bool}. Rows: role=unit (the traded class, coef 1), role=class (another
+    class and its coefficient), role=eps (the member carrying the unit class's EPS,
+    when it is not the undimensioned fact or the unit member itself — BRK tags EPS on
+    brka:EquivalentClassBMember), role=weighted (on a guard breach take the
+    company's weighted count; member and coef empty)."""
+    out: dict[str, dict] = {}
+    if not path.exists():
+        return out
+    with open(path, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            t = out.setdefault(r["ticker"], {"coef": {}, "unit": None, "eps": None, "weighted": False})
+            role, member = r["role"].strip(), r["member"].strip()
+            if role == "weighted":
+                t["weighted"] = True
+                continue
+            if role == "eps":
+                t["eps"] = member
+                continue
+            coef = r["coef"].strip()
+            t["coef"][member] = EPS_RATIO if coef == EPS_RATIO else float(coef)
+            if role == "unit":
+                t["unit"] = member
+    return out
+
+
+def _period_pair(entry: dict, kind: str, member: str, end: str) -> dict[tuple, float]:
+    return {(s, e): v for m, s, e, v in entry.get(kind, []) if m == member and e == end}
+
+
+def _guard_ni(entry: dict) -> dict[tuple, float]:
+    """{(start, end): parent net income} from one filing: NetIncomeLoss, else
+    ProfitLoss minus the NCI share at the same period (MA, IBKR, SPG, FOX, EL and
+    ABNB tag only ProfitLoss)."""
+    ni = {(s, e): v for s, e, v in entry.get("ni", [])}
+    nci = {(s, e): v for s, e, v in entry.get("nci", [])}
+    for s, e, v in entry.get("pl", []):
+        ni.setdefault((s, e), v - nci.get((s, e), 0.0))
+    return ni
+
+
+def _longest_eps(entry: dict, members: list[str], end: str) -> tuple | None:
+    """(period, EPS, member, kind) — diluted EPS first, then basic — over the longest
+    period ending at `end` that also has a parent net income (_guard_ni)."""
+    ni = {k for k in _guard_ni(entry) if k[1] == end}
+    for kind in ("eps", "epsb"):
+        for m in members:
+            eps = _period_pair(entry, kind, m, end)
+            common = sorted(set(eps) & ni)  # earliest start first = longest period
+            if common:
+                return common[0], eps[common[0]], m, kind
+    return None
+
+
+def _class_records(ticker: str, spec: dict, cache: dict, stats: dict) -> list[dict]:
+    """Economic share-count records (unit-class units) from the per-class cache."""
+    out: list[dict] = []
+    unit = spec["unit"]
+    eps_members = [m for m in (spec["eps"], "", unit) if m is not None]
+    for accn, e in sorted(cache.items(), key=lambda kv: kv[1]["filed"]):
+        if not e.get("instance") or not e.get("ecso"):
+            continue
+        # dei:DocumentPeriodEndDate can sit a few days off the contexts' end
+        # (52/53-week years); then the latest net-income end is the period end.
+        ni_ends = {k[1] for k in _guard_ni(e)}
+        end = e.get("period", "")
+        if end not in ni_ends and ni_ends:
+            end = max(ni_ends)
+        by_instant: dict[str, list] = {}
+        for m, inst, v in e["ecso"]:
+            by_instant.setdefault(inst, []).append((m, v))
+        got = _longest_eps(e, eps_members, end)
+        ni = _guard_ni(e)
+        for inst, classes in sorted(by_instant.items()):
+            econ, ok = 0.0, True
+            for m, v in classes:
+                if m not in spec["coef"]:
+                    if v:
+                        stats.setdefault("class_unknown_member", set()).add((ticker, m))
+                        ok = False
+                    continue
+                c = spec["coef"][m]
+                if c == EPS_RATIO:
+                    if not v:
+                        continue
+                    mine = _period_pair(e, "eps", m, end) or _period_pair(e, "epsb", m, end)
+                    base = _period_pair(e, "eps", unit, end) or _period_pair(e, "epsb", unit, end)
+                    k = sorted(set(mine) & set(base))
+                    if not k or not base[k[0]]:
+                        stats.setdefault("class_ratio_missing", []).append((ticker, accn, m))
+                        ok = False
+                        continue
+                    c = mine[k[0]] / base[k[0]]
+                econ += c * v
+            if not ok or econ < SHARES_SENTINEL_MIN:
+                continue
+            val = econ
+            if got is not None:
+                per, eps, m_eps, kind = got
+                n = ni.get(per)
+                if n and n > 0 and eps >= CLASS_GUARD_MIN_EPS:
+                    ref = n / eps
+                    if not (CLASS_GUARD_BAND[0] <= econ / ref <= CLASS_GUARD_BAND[1]):
+                        if spec.get("weighted"):
+                            val = ref
+                            for wk in ("wdil", "wbas"):
+                                w = _period_pair(e, wk, m_eps, end).get(per)
+                                if w and abs(w / ref - 1) <= CLASS_FALLBACK_AGREE:
+                                    val = w
+                                    break
+                            stats.setdefault("class_fallback", []).append(
+                                (ticker, e["filed"], round(econ), round(ref), round(val)))
+                        else:
+                            stats.setdefault("class_guard_breach", []).append(
+                                (ticker, e["filed"], round(econ), round(ref)))
+                else:
+                    stats["class_unguarded"] = stats.get("class_unguarded", 0) + 1
+            else:
+                stats["class_unguarded"] = stats.get("class_unguarded", 0) + 1
+            if val < SHARES_SENTINEL_MIN:
+                continue
+            out.append({"end": inst, "filed": e["filed"], "val": round(val),
+                        "form": e["form"], "fy": e.get("fy", ""), "fp": e.get("fp", "")})
+    return out
+
+
 def _fact_key(r: dict) -> tuple:
     return (r.get("start", ""), r["end"], r["filed"])
 
@@ -444,8 +611,11 @@ def _debt_free_zeros(facts: dict, covered: set[tuple]) -> list[dict]:
     return out
 
 
-def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict) -> list[list]:
-    """Extract all canonical concepts for one company -> panel rows."""
+def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict,
+                     class_spec: dict | None = None, class_cache: dict | None = None) -> list[list]:
+    """Extract all canonical concepts for one company -> panel rows. A ticker in the
+    coefficient table also gets its per-class economic share counts (class_cache =
+    its research/cache/edgar_classes JSON), winning an exact key collision."""
     rows: list[list] = []
 
     for concept, (namespace, tags, unit) in _CONCEPTS.items():
@@ -457,6 +627,11 @@ def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict) -> list[
             if n_drop:
                 stats["shares_sentinels_dropped"] = stats.get("shares_sentinels_dropped", 0) + n_drop
                 stats.setdefault("shares_sentinel_names", {})[ticker] = n_drop
+            if class_spec is not None:
+                crecs = _class_records(ticker, class_spec, class_cache or {}, stats)
+                stats["class_records"] = stats.get("class_records", 0) + len(crecs)
+                ckeys = {_fact_key(r) for r in crecs}
+                recs = [r for r in recs if _fact_key(r) not in ckeys] + crecs
         elif concept == "net_income":
             recs, n_refused = _extract_net_income(facts)
             if n_refused:
@@ -509,6 +684,8 @@ def build(limit: int | None = None) -> dict:
     for tk, cik in universe:
         cik_to_tickers.setdefault(cik, []).append(tk)
 
+    class_table = load_class_table()
+
     cache_files = sorted(_CACHE_DIR.glob("CIK*.json"))
     if limit is not None:
         cache_files = cache_files[:limit]
@@ -550,7 +727,15 @@ def build(limit: int | None = None) -> dict:
             facts = data.get("facts", {})
             _count_foreign(facts, stats)
             for ticker in tickers:
-                rows = _extract_company(ticker, cik10, facts, stats)
+                spec = class_table.get(ticker)
+                ccache = None
+                if spec is not None:
+                    cpath = _CLASS_CACHE_DIR / f"CIK{cik10}.json"
+                    if cpath.exists():
+                        ccache = json.loads(cpath.read_text(encoding="utf-8"))
+                    else:
+                        stats.setdefault("class_cache_missing", []).append(ticker)
+                rows = _extract_company(ticker, cik10, facts, stats, spec, ccache)
                 w.writerows(rows)
                 stats["rows"] += len(rows)
                 stats["companies_seen"] += 1
@@ -567,6 +752,17 @@ def build(limit: int | None = None) -> dict:
     if stats.get("profitloss_refused"):
         logger.info("net_income: %d ProfitLoss facts refused (material NCI, no NCI fact to subtract)",
                     stats["profitloss_refused"])
+    if class_table:
+        logger.info("shares_outstanding per class: %d records for %d tickers; %d unguarded; "
+                    "weighted fallback %d %s; guard breaches kept %d %s",
+                    stats.get("class_records", 0), len(class_table), stats.get("class_unguarded", 0),
+                    len(stats.get("class_fallback", [])),
+                    sorted({f[0] for f in stats.get("class_fallback", [])}),
+                    len(stats.get("class_guard_breach", [])),
+                    sorted({f[0] for f in stats.get("class_guard_breach", [])}))
+        for k in ("class_cache_missing", "class_unknown_member", "class_ratio_missing"):
+            if stats.get(k):
+                logger.warning("shares_outstanding per class: %s %s", k, sorted(stats[k])[:20])
     if stats["shares_sentinels_dropped"]:
         logger.info(
             "shares_outstanding: %d sub-1e6 sentinel facts dropped at source across %d names: %s",

@@ -1,0 +1,88 @@
+ticker,member,coef,role,source
+ABNB,us-gaap:CommonClassAMember,1,unit,10-K 0001559720-26-000004: Class H converts into one share of Class A share-for-share; Class C has no votes and is not convertible (0 shares outstanding 2021-2026)
+ABNB,us-gaap:CommonClassBMember,1,class,10-K 0001559720-26-000004: Class H converts into one share of Class A share-for-share; Class C has no votes and is not convertible (0 shares outstanding 2021-2026)
+ABNB,us-gaap:CommonClassCMember,1,class,10-K 0001559720-26-000004: Class H converts into one share of Class A share-for-share; Class C has no votes and is not convertible (0 shares outstanding 2021-2026)
+ABNB,abnb:CommonClassHMember,1,class,10-K 0001559720-26-000004: Class H converts into one share of Class A share-for-share; Class C has no votes and is not convertible (0 shares outstanding 2021-2026)
+ACN,us-gaap:CommonClassAMember,1,unit,10-K 0001467373-25-000217: a Class X ordinary share does not entitle its holder to receive dividends or any amount on a winding-up (no economic claim)
+ACN,acn:CommonClassXMember,0,class,10-K 0001467373-25-000217: a Class X ordinary share does not entitle its holder to receive dividends or any amount on a winding-up (no economic claim)
+AOS,aos:CommonStockClassUndefinedMember,1,unit,10-K 0000091142-26-000008: Class A Common Stock is convertible to Common Stock on a one for one basis; one EPS for both
+AOS,us-gaap:CommonClassAMember,1,class,10-K 0000091142-26-000008: Class A Common Stock is convertible to Common Stock on a one for one basis; one EPS for both
+BRK.B,us-gaap:CommonClassBMember,1,unit,"10-K 0001193125-26-083899: each share of Class A common stock is convertible into 1,500 shares of Class B; EPS per equivalent A / per equivalent B = 1499.9 (median of 95 period pairs, 10-Q/10-K 2019-2026)"
+BRK.B,us-gaap:CommonClassAMember,1500,class,"10-K 0001193125-26-083899: each share of Class A common stock is convertible into 1,500 shares of Class B; EPS per equivalent A / per equivalent B = 1499.9 (median of 95 period pairs, 10-Q/10-K 2019-2026)"
+BRK.B,brka:EquivalentClassBMember,,eps,"10-K 0001193125-26-083899: each share of Class A common stock is convertible into 1,500 shares of Class B; EPS per equivalent A / per equivalent B = 1499.9 (median of 95 period pairs, 10-Q/10-K 2019-2026)"
+CHTR,us-gaap:CommonClassAMember,1,unit,"10-K 0001091667-26-000017: Class A and Class B common stock are identical except with respect to certain voting, transfer and conversion rights (Class B = the 1 share issued to A/N)"
+CHTR,us-gaap:CommonClassBMember,1,class,"10-K 0001091667-26-000017: Class A and Class B common stock are identical except with respect to certain voting, transfer and conversion rights (Class B = the 1 share issued to A/N)"
+CMCSA,us-gaap:CommonClassAMember,1,unit,"10-K 0001628280-26-004994: Class B common stock is convertible, share for share, into Class A common stock"
+CMCSA,us-gaap:CommonClassBMember,1,class,"10-K 0001628280-26-004994: Class B common stock is convertible, share for share, into Class A common stock"
+CME,us-gaap:CommonClassAMember,1,unit,"10-K 0001156375-26-000009: Class A, Class B common stock and Series G preferred are entitled to receive proportionately such dividends as may be declared"
+CME,cme:ClassBCommonStockClassB1Member,1,class,"10-K 0001156375-26-000009: Class A, Class B common stock and Series G preferred are entitled to receive proportionately such dividends as may be declared"
+CME,cme:ClassBCommonStockClassB2Member,1,class,"10-K 0001156375-26-000009: Class A, Class B common stock and Series G preferred are entitled to receive proportionately such dividends as may be declared"
+CME,cme:ClassBCommonStockClassB3Member,1,class,"10-K 0001156375-26-000009: Class A, Class B common stock and Series G preferred are entitled to receive proportionately such dividends as may be declared"
+CME,cme:ClassBCommonStockClassB4Member,1,class,"10-K 0001156375-26-000009: Class A, Class B common stock and Series G preferred are entitled to receive proportionately such dividends as may be declared"
+CVNA,us-gaap:CommonClassAMember,1,unit,10-K 0001690820-26-000009: holders of Class B common stock are not entitled to receive dividends or any distributions upon liquidation (Up-C voting class); EPS is reported for Class A only
+CVNA,us-gaap:CommonClassBMember,0,class,10-K 0001690820-26-000009: holders of Class B common stock are not entitled to receive dividends or any distributions upon liquidation (Up-C voting class); EPS is reported for Class A only
+DASH,us-gaap:CommonClassAMember,1,unit,"10-K 0001792789-26-000013: the rights, including liquidation and dividend rights, of Class A, B and C are substantially identical other than voting; EPS B/A = 1.000 (11 pairs)"
+DASH,us-gaap:CommonClassBMember,1,class,"10-K 0001792789-26-000013: the rights, including liquidation and dividend rights, of Class A, B and C are substantially identical other than voting; EPS B/A = 1.000 (11 pairs)"
+DASH,us-gaap:CommonClassCMember,1,class,"10-K 0001792789-26-000013: the rights, including liquidation and dividend rights, of Class A, B and C are substantially identical other than voting; EPS B/A = 1.000 (11 pairs)"
+DDOG,us-gaap:CommonClassAMember,1,unit,10-K 0001628280-26-008819: rights of Class A and Class B are identical except voting and conversion; Class B converts into Class A
+DDOG,us-gaap:CommonClassBMember,1,class,10-K 0001628280-26-008819: rights of Class A and Class B are identical except voting and conversion; Class B converts into Class A
+EL,us-gaap:CommonClassAMember,1,unit,10-K 0001001250-26-000041: Class B convertible into Class A on the basis of one share of Class A for each share of Class B
+EL,us-gaap:CommonClassBMember,1,class,10-K 0001001250-26-000041: Class B convertible into Class A on the basis of one share of Class A for each share of Class B
+ERIE,us-gaap:CommonClassAMember,1,unit,"10-K 0001628280-26-010666: Class B shares are convertible into Class A shares at a conversion ratio of 2,400 to 1 (class A diluted EPS counts the conversion; two-class basic EPS B/A = 150)"
+ERIE,us-gaap:CommonClassBMember,2400,class,"10-K 0001628280-26-010666: Class B shares are convertible into Class A shares at a conversion ratio of 2,400 to 1 (class A diluted EPS counts the conversion; two-class basic EPS B/A = 150)"
+FOX,us-gaap:CommonClassBMember,1,unit,10-K 0001628280-26-053960: holders of Class A and Class B entitled to substantially identical per share consideration; one EPS for both classes
+FOX,us-gaap:CommonClassAMember,1,class,10-K 0001628280-26-053960: holders of Class A and Class B entitled to substantially identical per share consideration; one EPS for both classes
+FOXA,us-gaap:CommonClassAMember,1,unit,10-K 0001628280-26-053960: holders of Class A and Class B entitled to substantially identical per share consideration; one EPS for both classes
+FOXA,us-gaap:CommonClassBMember,1,class,10-K 0001628280-26-053960: holders of Class A and Class B entitled to substantially identical per share consideration; one EPS for both classes
+HOOD,us-gaap:CommonClassAMember,1,unit,10-K 0001783879-26-000023: liquidation and dividend rights of Class A and Class B are identical except voting; Class B converts into one Class A; EPS B/A = 1.000 (22 pairs)
+HOOD,us-gaap:CommonClassBMember,1,class,10-K 0001783879-26-000023: liquidation and dividend rights of Class A and Class B are identical except voting; Class B converts into one Class A; EPS B/A = 1.000 (22 pairs)
+HRL,us-gaap:CommonStockMember,1,unit,10-Q/10-K cover pages 2019-2026: Nonvoting common stock outstanding = 0 at every filing; carried at 1 for completeness
+HRL,us-gaap:NonvotingCommonStockMember,1,class,10-Q/10-K cover pages 2019-2026: Nonvoting common stock outstanding = 0 at every filing; carried at 1 for completeness
+IBKR,us-gaap:CommonClassAMember,1,unit,10-K 0001381197-26-000062: Class B common stock has voting rights in proportion to IBG Holdings' ownership interests in IBG LLC (no claim on IBKR net income; NCI); 100 shares
+IBKR,us-gaap:CommonClassBMember,0,class,10-K 0001381197-26-000062: Class B common stock has voting rights in proportion to IBG Holdings' ownership interests in IBG LLC (no claim on IBKR net income; NCI); 100 shares
+LEN,us-gaap:CommonClassAMember,1,unit,10-K 0001628280-26-003870: Class A and Class B differ in votes (1 vs 10) and receive the same per share annual dividend; one EPS for both
+LEN,us-gaap:CommonClassBMember,1,class,10-K 0001628280-26-003870: Class A and Class B differ in votes (1 vs 10) and receive the same per share annual dividend; one EPS for both
+MA,us-gaap:CommonClassAMember,1,unit,10-K 0001141391-26-000013: shares of Class B common stock are convertible on a one-for-one basis into Class A
+MA,us-gaap:CommonClassBMember,1,class,10-K 0001141391-26-000013: shares of Class B common stock are convertible on a one-for-one basis into Class A
+META,us-gaap:CommonClassAMember,1,unit,10-K 0001628280-26-003942: holders of Class A and Class B have identical liquidation and dividend rights but different voting rights; EPS B/A = 1.000 (63 pairs)
+META,us-gaap:CommonClassBMember,1,class,10-K 0001628280-26-003942: holders of Class A and Class B have identical liquidation and dividend rights but different voting rights; EPS B/A = 1.000 (63 pairs)
+MKC,us-gaap:NonvotingCommonStockMember,1,unit,10-K 0000063754-26-000037: Common Stock Non-Voting converts into Common Stock; one EPS for both classes
+MKC,us-gaap:CommonStockMember,1,class,10-K 0000063754-26-000037: Common Stock Non-Voting converts into Common Stock; one EPS for both classes
+NKE,us-gaap:CommonClassBMember,1,unit,10-K 0000320187-26-000088: each share of Class A Common Stock is convertible into one share of Class B; one EPS for both classes
+NKE,us-gaap:CommonClassAMember,1,class,10-K 0000320187-26-000088: each share of Class A Common Stock is convertible into one share of Class B; one EPS for both classes
+NWS,us-gaap:CommonClassBMember,1,unit,10-K 0001564708-26-000175: holders of Class A and Class B entitled to substantially identical per share consideration; one EPS for both classes
+NWS,us-gaap:CommonClassAMember,1,class,10-K 0001564708-26-000175: holders of Class A and Class B entitled to substantially identical per share consideration; one EPS for both classes
+NWSA,us-gaap:CommonClassAMember,1,unit,10-K 0001564708-26-000175: holders of Class A and Class B entitled to substantially identical per share consideration; one EPS for both classes
+NWSA,us-gaap:CommonClassBMember,1,class,10-K 0001564708-26-000175: holders of Class A and Class B entitled to substantially identical per share consideration; one EPS for both classes
+REGN,us-gaap:CommonStockMember,1,unit,10-K 0000872589-26-000008: net income per share presented on a combined basis as each class of stock has equivalent economic rights; Class A converts share-for-share
+REGN,us-gaap:CommonClassAMember,1,class,10-K 0000872589-26-000008: net income per share presented on a combined basis as each class of stock has equivalent economic rights; Class A converts share-for-share
+RL,us-gaap:CommonClassAMember,1,unit,10-K 0001628280-26-037074: Class A and Class B have substantially identical rights except voting; Class B converts into Class A one-for-one
+RL,us-gaap:CommonClassBMember,1,class,10-K 0001628280-26-037074: Class A and Class B have substantially identical rights except voting; Class B converts into Class A one-for-one
+SPG,us-gaap:CommonClassAMember,1,unit,10-K 0001104659-26-019419: Class B common stock converts into an equal number of shares of common stock
+SPG,us-gaap:CommonClassBMember,1,class,10-K 0001104659-26-019419: Class B common stock converts into an equal number of shares of common stock
+STZ,us-gaap:CommonClassAMember,1,unit,10-K 0000016918-26-000011: Class 1 Stock convertible into Class A on a one-to-one basis; 10-K 0000016918-22-000069: Class B convertible into Class A one-to-one (class A diluted EPS if-converted)
+STZ,us-gaap:CommonClassBMember,1,class,10-K 0000016918-26-000011: Class 1 Stock convertible into Class A on a one-to-one basis; 10-K 0000016918-22-000069: Class B convertible into Class A one-to-one (class A diluted EPS if-converted)
+STZ,us-gaap:ConvertibleCommonStockMember,1,class,10-K 0000016918-26-000011: Class 1 Stock convertible into Class A on a one-to-one basis; 10-K 0000016918-22-000069: Class B convertible into Class A one-to-one (class A diluted EPS if-converted)
+TKO,us-gaap:CommonClassAMember,1,unit,"10-K 0001193125-26-071651: no dividends are declared or paid on TKO Class B common stock, which does not have economic rights"
+TKO,us-gaap:CommonClassBMember,0,class,"10-K 0001193125-26-071651: no dividends are declared or paid on TKO Class B common stock, which does not have economic rights"
+TSN,us-gaap:CommonClassAMember,1,unit,"10-K 0000100493-25-000095: Class B may convert into Class A on a share-for-share basis (participating convertible; two-class basic EPS B/A = 0.90, diluted counts the conversion)"
+TSN,us-gaap:CommonClassBMember,1,class,"10-K 0000100493-25-000095: Class B may convert into Class A on a share-for-share basis (participating convertible; two-class basic EPS B/A = 0.90, diluted counts the conversion)"
+TTD,us-gaap:CommonClassAMember,1,unit,10-K 0001671933-26-000014: each share of Class B is convertible into one share of Class A at any time
+TTD,us-gaap:CommonClassBMember,1,class,10-K 0001671933-26-000014: each share of Class B is convertible into one share of Class A at any time
+UHS,us-gaap:CommonClassBMember,1,unit,10-K 0001193125-26-071676: all classes of our common stock have similar economic rights; one EPS for all classes
+UHS,us-gaap:CommonClassAMember,1,class,10-K 0001193125-26-071676: all classes of our common stock have similar economic rights; one EPS for all classes
+UHS,us-gaap:CommonClassCMember,1,class,10-K 0001193125-26-071676: all classes of our common stock have similar economic rights; one EPS for all classes
+UHS,uhs:CommonClassDMember,1,class,10-K 0001193125-26-071676: all classes of our common stock have similar economic rights; one EPS for all classes
+UPS,us-gaap:CommonClassBMember,1,unit,10-K 0001628280-26-008432: EPS are the same for class A and class B as holders are legally entitled to equal per share distributions; class A convertible into class B
+UPS,us-gaap:CommonClassAMember,1,class,10-K 0001628280-26-008432: EPS are the same for class A and class B as holders are legally entitled to equal per share distributions; class A convertible into class B
+V,us-gaap:CommonClassAMember,1,unit,"10-Q 0001403161-26-000104 and every 10-Q/10-K since 2019: B, B-1, B-2, B-3 and C convert into class A at rates that move with the litigation escrow; the filing's own per-class EPS over class A EPS is that rate (C/A = 4.000 median of 95 pairs; B-1/A 1.585)"
+V,us-gaap:CommonClassBMember,eps_ratio,class,"10-Q 0001403161-26-000104 and every 10-Q/10-K since 2019: B, B-1, B-2, B-3 and C convert into class A at rates that move with the litigation escrow; the filing's own per-class EPS over class A EPS is that rate (C/A = 4.000 median of 95 pairs; B-1/A 1.585)"
+V,us-gaap:CommonClassCMember,eps_ratio,class,"10-Q 0001403161-26-000104 and every 10-Q/10-K since 2019: B, B-1, B-2, B-3 and C convert into class A at rates that move with the litigation escrow; the filing's own per-class EPS over class A EPS is that rate (C/A = 4.000 median of 95 pairs; B-1/A 1.585)"
+V,v:CommonClassB1Member,eps_ratio,class,"10-Q 0001403161-26-000104 and every 10-Q/10-K since 2019: B, B-1, B-2, B-3 and C convert into class A at rates that move with the litigation escrow; the filing's own per-class EPS over class A EPS is that rate (C/A = 4.000 median of 95 pairs; B-1/A 1.585)"
+V,v:CommonClassB2Member,eps_ratio,class,"10-Q 0001403161-26-000104 and every 10-Q/10-K since 2019: B, B-1, B-2, B-3 and C convert into class A at rates that move with the litigation escrow; the filing's own per-class EPS over class A EPS is that rate (C/A = 4.000 median of 95 pairs; B-1/A 1.585)"
+V,v:CommonClassB3Member,eps_ratio,class,"10-Q 0001403161-26-000104 and every 10-Q/10-K since 2019: B, B-1, B-2, B-3 and C convert into class A at rates that move with the litigation escrow; the filing's own per-class EPS over class A EPS is that rate (C/A = 4.000 median of 95 pairs; B-1/A 1.585)"
+WDAY,us-gaap:CommonClassAMember,1,unit,10-K 0001327811-26-000014: Class A and Class B have identical liquidation and dividend rights; Class B converts into Class A; EPS B/A = 1.000 (28 pairs)
+WDAY,us-gaap:CommonClassBMember,1,class,10-K 0001327811-26-000014: Class A and Class B have identical liquidation and dividend rights; Class B converts into Class A; EPS B/A = 1.000 (28 pairs)
+XYZ,us-gaap:CommonClassAMember,1,unit,10-K 0001628280-26-012254: Class B convertible into an equivalent number of Class A shares; one EPS for both classes
+XYZ,us-gaap:CommonClassBMember,1,class,10-K 0001628280-26-012254: Class B convertible into an equivalent number of Class A shares; one EPS for both classes
+ACN,,,weighted,"10-Q 0001467373-26-000032 cover: Class A ordinary shares outstanding as of June 4, 2026 was 667,510,210 (which number includes 55,568,101 issued shares held by the registrant); on a guard breach the company's weighted count is used"
