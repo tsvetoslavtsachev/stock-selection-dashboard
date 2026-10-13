@@ -49,6 +49,10 @@ def _own_cache(q2_2024=110.0, tag="FooCapex"):
     }
 
 
+def _spec(*tags, minus=(), proof="", since=""):
+    return collect_own_tags.OwnSpec(tuple(tags), tuple(minus), proof, since)
+
+
 def _capex(rows):
     return sorted((r[4], r[5], r[10]) for r in rows if r[2] == "capex")
 
@@ -61,7 +65,7 @@ def _extract(own_specs, own_cache, chain=_CHAIN):
 
 
 def test_own_tag_continues_the_series_only_forward_when_proven():
-    rows, stats = _extract({"capex": ("zzz:FooCapex",)}, _own_cache())
+    rows, stats = _extract({"capex": _spec("zzz:FooCapex")}, _own_cache())
     assert rows == [("2024-01-01", "2024-03-31", 100.0), ("2024-04-01", "2024-06-30", 110.0),
                     ("2025-01-01", "2025-03-31", 115.0), ("2025-04-01", "2025-06-30", 120.0)]
     assert stats["own_admitted"] == ["ZZZ.capex:zzz:FooCapex"]
@@ -69,18 +73,18 @@ def test_own_tag_continues_the_series_only_forward_when_proven():
 
 def test_own_tag_without_proof_never_enters():
     # one shared period 1% off: a different line, the gap stays
-    rows, stats = _extract({"capex": ("zzz:FooCapex",)}, _own_cache(q2_2024=111.1))
+    rows, stats = _extract({"capex": _spec("zzz:FooCapex")}, _own_cache(q2_2024=111.1))
     assert rows == _capex(build_panel._emit_rows("ZZZ", "1", "capex", "USD", _CHAIN))
     assert stats["own_refused"] == ["ZZZ.capex:zzz:FooCapex"]
 
 
 def test_own_tag_needs_two_shared_periods():
-    rows, stats = _extract({"capex": ("zzz:FooCapex",)}, _own_cache(), chain=_CHAIN[1:])
+    rows, stats = _extract({"capex": _spec("zzz:FooCapex")}, _own_cache(), chain=_CHAIN[1:])
     assert [r[1] for r in rows] == ["2024-06-30"] and "own_admitted" not in stats
 
 
 def test_own_tag_without_a_chain_never_enters():
-    rows, _stats = _extract({"capex": ("zzz:FooCapex",)}, _own_cache(), chain=[])
+    rows, _stats = _extract({"capex": _spec("zzz:FooCapex")}, _own_cache(), chain=[])
     assert rows == []
 
 
@@ -130,8 +134,67 @@ def test_parse_instance_keeps_only_undimensioned_usd_extension_facts():
 def test_own_tags_table_is_by_name_and_well_formed():
     table = collect_own_tags.load_table()
     assert len(table) == 12
-    for (ticker, concept), tags in table.items():
+    for (ticker, concept), spec in table.items():
         assert concept in build_panel._CONCEPTS, (ticker, concept)
-        for t in tags:
+        for t in spec.tags:
             prefix, name = t.split(":", 1)
             assert prefix and name and prefix not in ("us-gaap", "dei"), (ticker, t)
+    assert table[("ACN", "depreciation_amortization")].minus == ("us-gaap:OperatingLeaseCost",)
+    assert table[("TSLA", "depreciation_amortization")].proof == "us-gaap:DepreciationAndAmortization"
+
+
+def test_formula_parsing_and_refusals(tmp_path):
+    p = tmp_path / "t.csv"
+    p.write_text("ticker,concept,tags,proof,from,belezhka\n"
+                 "X,capex,x:A + x:B - us-gaap:C,,2018-01-01,\n", encoding="utf-8")
+    assert collect_own_tags.load_table(p)[("X", "capex")] == _spec(
+        "x:A", "x:B", minus=("us-gaap:C",), since="2018-01-01")
+    for bad in ("us-gaap:A", "x:A-x:B", "x:A,x:B", "x:A x:B"):   # us-gaap never adds, own never subtracts, proof is us-gaap
+        tags, proof = (bad.split(",") + [""])[:2]
+        p.write_text(f"ticker,concept,tags,proof,from,belezhka\nX,capex,{tags},{proof},,\n", encoding="utf-8")
+        try:
+            collect_own_tags.load_table(p)
+        except ValueError:
+            continue
+        raise AssertionError(bad)
+
+
+def _lease_facts(lease):
+    f = _facts()
+    f["us-gaap"]["OperatingLeaseCost"] = {"units": {"USD": lease}}
+    return f
+
+
+def test_own_minus_us_gaap_part_of_the_same_filing():
+    # ACN shape: the cash-flow line carries the lease rent; the rent of the SAME filing
+    # and period is taken out, a record without it is dropped
+    cache = {"b1": _entry("2025-04-30", {"Wide": [["2024-01-01", "2024-03-31", 130.0],
+                                                  ["2025-01-01", "2025-03-31", 145.0]]}),
+             "b2": _entry("2025-07-30", {"Wide": [["2024-04-01", "2024-06-30", 140.0],
+                                                  ["2025-04-01", "2025-06-30", 150.0]]})}
+    lease = [dict(_f("2024-03-31", "2024-01-01", 30.0, "2025-04-30"), accn="b1"),
+             dict(_f("2025-03-31", "2025-01-01", 30.0, "2025-04-30"), accn="b1"),
+             dict(_f("2024-06-30", "2024-04-01", 30.0, "2025-07-30"), accn="b2"),
+             dict(_f("2025-06-30", "2025-04-01", 30.0, "2025-07-30"), accn="b1")]  # wrong filing
+    stats = {"missing_concept": {}}
+    rows = _capex(build_panel._extract_company(
+        "ZZZ", "0000000001", _lease_facts(lease), stats,
+        own_specs={"capex": _spec("zzz:Wide", minus=("us-gaap:OperatingLeaseCost",))}, own_cache=cache))
+    assert rows[-1] == ("2025-01-01", "2025-03-31", 115.0) and len(rows) == 3
+    # without the subtraction the wide line fails the proof
+    rows, _ = _extract({"capex": _spec("zzz:Wide")}, cache)
+    assert len(rows) == 2
+
+
+def test_proof_against_a_named_tag_not_the_series():
+    # TSLA shape: the series is a narrow note figure, the cash-flow line lives under
+    # another us-gaap tag on the shared periods; the own tag is proven against that tag
+    narrow = [dict(r, val=r["val"] / 2) for r in _CHAIN]
+    f = _facts(narrow)
+    f["us-gaap"]["Full"] = {"units": {"USD": list(_CHAIN)}}
+    for proof, admitted in (("us-gaap:Full", True), ("", False)):
+        stats = {"missing_concept": {}}
+        rows = _capex(build_panel._extract_company(
+            "ZZZ", "0000000001", f, stats,
+            own_specs={"capex": _spec("zzz:FooCapex", proof=proof)}, own_cache=_own_cache()))
+        assert ("own_admitted" in stats) is admitted and len(rows) == (4 if admitted else 2), proof

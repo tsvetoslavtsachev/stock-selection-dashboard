@@ -14,7 +14,8 @@ them only through the overlap proof against the filer's own us-gaap chain.
 What it caches
 --------------
 For every ticker in own_tags.csv and every 10-K / 10-Q (and amendments) filed from
-IXBRL_FROM on, one entry per accession in research/cache/edgar_own/CIK{cik10}.json:
+IXBRL_FROM on (or from the row's `from` date, when the proof needs older comparatives:
+TSLA; then the pre-inline instance layout is read too), one entry per accession in research/cache/edgar_own/CIK{cik10}.json:
 
     {"form", "filed", "period", "fy", "fp", "instance", "tags": [local names looked for],
      "facts": {local_name: [[start, end, val], ...]}}   # undimensioned, USD only
@@ -37,9 +38,12 @@ import argparse
 import csv
 import json
 import logging
+import re
 import sys
+import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from typing import NamedTuple
 
 import requests
 
@@ -48,7 +52,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from research.fundamentals.collect_edgar_classes import (  # noqa: E402
-    _DEI_META, _XBRLDI, _XBRLI, _cik_map, _fetch_instance, _filings,
+    ARCHIVES, DELAY, FORMS, IXBRL_FROM, _DEI_META, _XBRLDI, _XBRLI, _cik_map,
 )
 from src.lib.sec_client import SECClient, _load_user_agent  # noqa: E402
 
@@ -59,11 +63,35 @@ CACHE_DIR = _REPO_ROOT / "research" / "cache" / "edgar_own"
 _STANDARD_NS = ("http://fasb.org/", "http://xbrl.sec.gov/", "http://www.xbrl.org/", "http://xbrl.org/")
 
 
-def load_table(path: Path = TABLE_PATH) -> dict[tuple[str, str], tuple[str, ...]]:
-    """(ticker, concept) -> the own tags (prefixed, e.g. 'acn:Foo'); several = a sum."""
+_TERM = r"([+-]?)((?:us-gaap|[A-Za-z0-9_]+):[A-Za-z0-9_]+)"
+
+
+class OwnSpec(NamedTuple):
+    tags: tuple[str, ...]    # own tags (prefixed, e.g. 'acn:Foo'), summed from one filing
+    minus: tuple[str, ...]   # us-gaap tags subtracted, from companyfacts, same filing (ACN lease)
+    proof: str               # us-gaap tag the proof runs against; "" = the panel's series
+    since: str               # filed-from date for the collector; "" = IXBRL_FROM
+
+
+def load_table(path: Path = TABLE_PATH) -> dict[tuple[str, str], OwnSpec]:
+    """(ticker, concept) -> OwnSpec. `tags` is a formula: own tags joined by '+', then
+    us-gaap tags to subtract joined by '-' ('acn:A-us-gaap:OperatingLeaseCost')."""
+    out = {}
     with open(path, newline="", encoding="utf-8") as f:
-        return {(r["ticker"], r["concept"]): tuple(t.strip() for t in r["tags"].split("+"))
-                for r in csv.DictReader(f)}
+        for r in csv.DictReader(f):
+            formula = re.sub(r"\s+", "", r["tags"])
+            parts = re.findall(_TERM, formula)
+            if "".join(sign + t for sign, t in parts) != formula or not parts or parts[0][0]:
+                raise ValueError(f"own_tags.csv {r['ticker']}: bad formula {r['tags']!r}")
+            plus = tuple(t.strip() for sign, t in parts if sign != "-")
+            minus = tuple(t.strip() for sign, t in parts if sign == "-")
+            if any(t.startswith("us-gaap:") for t in plus) or not all(t.startswith("us-gaap:") for t in minus):
+                raise ValueError(f"own_tags.csv {r['ticker']}: own tags add, us-gaap tags subtract")
+            proof = (r.get("proof") or "").strip()
+            if proof and not proof.startswith("us-gaap:"):
+                raise ValueError(f"own_tags.csv {r['ticker']}: the proof runs against a us-gaap tag")
+            out[(r["ticker"], r["concept"])] = OwnSpec(plus, minus, proof, (r.get("from") or "").strip())
+    return out
 
 
 def local_name(tag: str) -> str:
@@ -89,6 +117,44 @@ def own_records(cache: dict, tags: tuple[str, ...]) -> list[dict]:
                 r["start"] = key[0]
             out.append(r)
     return out
+
+
+def _filings(client: SECClient, web: requests.Session, cik10: str, since: str) -> list[dict]:
+    """All 10-K/10-Q filed since `since`, across the paged submissions (as ПНЛ1)."""
+    sub = client.submissions(cik10)
+    blocks = [sub["filings"]["recent"]]
+    for f in sub["filings"].get("files", []):
+        if f.get("filingTo", "9999") < since:
+            continue
+        r = web.get(f"https://data.sec.gov/submissions/{f['name']}", timeout=30)
+        r.raise_for_status()
+        time.sleep(DELAY)
+        blocks.append(r.json())
+    return [{"accn": b["accessionNumber"][i], "form": form, "filed": b["filingDate"][i]}
+            for b in blocks for i, form in enumerate(b["form"])
+            if form in FORMS and b["filingDate"][i] >= since]
+
+
+_LINKBASES = ("_cal.xml", "_def.xml", "_lab.xml", "_pre.xml")
+
+
+def _fetch_instance(web: requests.Session, cik10: str, accn: str) -> tuple[str, bytes] | None:
+    """The extracted inline instance (*_htm.xml), else the pre-inline one (tsla-20180630.xml)."""
+    base = f"{ARCHIVES}/{int(cik10)}/{accn.replace('-', '')}/"
+    r = web.get(base + "index.json", timeout=30)
+    time.sleep(DELAY)
+    if r.status_code == 404:
+        return None
+    r.raise_for_status()
+    names = [it["name"] for it in r.json()["directory"]["item"]]
+    inst = ([n for n in names if n.endswith("_htm.xml")]
+            or [n for n in names if n.endswith(".xml") and not n.endswith(_LINKBASES) and n != "FilingSummary.xml"])
+    if not inst:
+        return None
+    x = web.get(base + inst[0], timeout=120)
+    time.sleep(DELAY)
+    x.raise_for_status()
+    return inst[0], x.content
 
 
 def parse_instance(xml_bytes: bytes, wanted: set[str]) -> dict:
@@ -144,10 +210,12 @@ def collect(tickers: list[str] | None = None) -> dict:
     table = load_table()
     cmap = _cik_map()
     want: dict[str, set[str]] = {}
-    for (ticker, _concept), tags in table.items():
+    since: dict[str, str] = {}
+    for (ticker, _concept), spec in table.items():
         if tickers and ticker not in tickers:
             continue
-        want.setdefault(cmap[ticker], set()).update(local_name(t) for t in tags)
+        want.setdefault(cmap[ticker], set()).update(local_name(t) for t in spec.tags)
+        since[cmap[ticker]] = min(since.get(cmap[ticker], IXBRL_FROM), spec.since or IXBRL_FROM)
     client = SECClient()
     web = requests.Session()
     web.headers.update({"User-Agent": _load_user_agent(), "Accept-Encoding": "gzip, deflate"})
@@ -157,7 +225,7 @@ def collect(tickers: list[str] | None = None) -> dict:
         p = cache_path(cik10)
         cache = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
         try:
-            filings = _filings(client, web, cik10)
+            filings = _filings(client, web, cik10, since[cik10])
         except Exception as exc:  # noqa: BLE001 — one bad name never aborts the batch
             stats["failed"].append((cik10, "submissions", repr(exc)[:120]))
             continue

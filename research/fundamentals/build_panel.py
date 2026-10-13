@@ -285,7 +285,11 @@ _DA_NA: dict[str, str] = {
 # those facts from the filings' instances (companyfacts drops them). Admitted after the
 # fallbacks by the same overlap proof against the filer's own series, only CONTINUING it
 # (facts ending after its last period_end). Never global: a tag outside the table, or one
-# whose proof fails (ACN, AMT, MAR, TSLA, TPL, URI), adds nothing.
+# whose proof fails (AMT, MAR, TPL, URI), adds nothing. Two refinements (Р3 на Ц.,
+# 13.10.2026): a row may SUBTRACT us-gaap facts of the same filing (ACN: the cash-flow
+# line minus OperatingLeaseCost, the lease rent it carries since ASC 842), and may run
+# its proof against a named us-gaap tag instead of the series (TSLA: the chain is the
+# PP&E note, the cash-flow line is DepreciationAndAmortization up to Q1 2018).
 _OWN_CACHE_DIR = _own.CACHE_DIR
 _IDENTITY_TAGS: dict[str, list[str]] = {
     "net_income": ["NetIncomeLossAvailableToCommonStockholdersBasic", _NI_CONSOLIDATED_TAG],
@@ -718,10 +722,24 @@ def _continue_with_fallbacks(facts: dict, concept: str, chain: list[dict]) -> tu
     return out, admitted
 
 
-def _continue_with_own(series: list[dict], cand: list[dict]) -> tuple[list[dict], bool]:
+def _own_candidate(facts: dict, own_cache: dict, spec: "_own.OwnSpec") -> list[dict]:
+    """The own tags' records (summed from one filing) minus the spec's us-gaap tags
+    from the SAME filing and period; a record without every part is dropped."""
+    recs = _own.own_records(own_cache, spec.tags)
+    for tag in spec.minus:
+        part = {(r.get("accn"), r.get("start", ""), r["end"]): r["val"]
+                for r in _facts_for_tag(facts, "us-gaap", tag.split(":", 1)[1], _USD) if _valid(r)}
+        recs = [dict(r, val=r["val"] - part[k]) for r in recs
+                if (k := (r["accn"], r.get("start", ""), r["end"])) in part]
+    return recs
+
+
+def _continue_with_own(series: list[dict], cand: list[dict],
+                       ref: list[dict] | None = None) -> tuple[list[dict], bool]:
     """Append the own tag's facts ending after the series' last period_end, when the
-    overlap proof holds (see _OWN_CACHE_DIR). Returns (records, admitted)."""
-    if not series or not cand or not _overlap_proven(series, cand):
+    overlap proof against `ref` (default: the series) holds (see _OWN_CACHE_DIR).
+    Returns (records, admitted)."""
+    if not series or not cand or not _overlap_proven(series if ref is None else ref, cand):
         return series, False
     last = max(r["end"] for r in series)
     seen = {_fact_key(r) for r in series}
@@ -817,12 +835,12 @@ def _debt_free_zeros(facts: dict, covered: set[tuple]) -> list[dict]:
 def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict,
                      class_spec: dict | None = None, class_cache: dict | None = None,
                      debt_face: tuple | None = None, debt_cache: dict | None = None,
-                     own_specs: dict[str, tuple[str, ...]] | None = None,
+                     own_specs: dict[str, "_own.OwnSpec"] | None = None,
                      own_cache: dict | None = None) -> list[list]:
     """Extract all canonical concepts for one company -> panel rows. A ticker in the
     coefficient table also gets its per-class economic share counts (class_cache =
     its research/cache/edgar_classes JSON), winning an exact key collision. A ticker in
-    own_tags.csv (own_specs: concept -> own tags) continues that concept from own_cache
+    own_tags.csv (own_specs: concept -> OwnSpec) continues that concept from own_cache
     (its research/cache/edgar_own JSON) only where the overlap proof holds."""
     rows: list[list] = []
 
@@ -856,10 +874,14 @@ def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict,
             for tag in admitted:
                 stats.setdefault("fallbacks", {}).setdefault(f"{concept}:{tag}", []).append(ticker)
         if own_specs and concept in own_specs:
-            tags = own_specs[concept]
-            recs, ok = _continue_with_own(recs, _own.own_records(own_cache or {}, tags))
+            spec = own_specs[concept]
+            ref = None
+            if spec.proof:
+                ref = [r for r in _facts_for_tag(facts, "us-gaap", spec.proof.split(":", 1)[1], unit)
+                       if _valid(r)]
+            recs, ok = _continue_with_own(recs, _own_candidate(facts, own_cache or {}, spec), ref)
             stats.setdefault("own_admitted" if ok else "own_refused", []).append(
-                f"{ticker}.{concept}:{'+'.join(tags)}")
+                f"{ticker}.{concept}:{'+'.join(spec.tags)}{''.join('-' + t for t in spec.minus)}")
 
         if recs:
             rows.extend(_emit_rows(ticker, cik10, concept, unit, recs))
@@ -916,9 +938,9 @@ def build(limit: int | None = None) -> dict:
         cik_to_tickers.setdefault(cik, []).append(tk)
 
     class_table = load_class_table()
-    own_table: dict[str, dict[str, tuple[str, ...]]] = {}
-    for (tk, concept), tags in _own.load_table().items():
-        own_table.setdefault(tk, {})[concept] = tags
+    own_table: dict[str, dict[str, _own.OwnSpec]] = {}
+    for (tk, concept), spec in _own.load_table().items():
+        own_table.setdefault(tk, {})[concept] = spec
     debt_face = _debt.read_face()
 
     cache_files = sorted(_CACHE_DIR.glob("CIK*.json"))
