@@ -35,7 +35,8 @@ G6 — staleness ratchet (12.10.2026)
 
 CLI
     python -m research.fundamentals.validate_gates
-    python -m research.fundamentals.validate_gates --panel OTHER.csv.gz   # G6 only
+    python -m research.fundamentals.validate_gates --panel OTHER.csv.gz   # G6+G6d only
+    python -m research.fundamentals.validate_gates --panel P --no-stamp   # CI: never touches the stamp
     python -m research.fundamentals.validate_gates --write-baseline       # refreeze G6
 """
 
@@ -54,7 +55,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from research.fundamentals import debt, pit  # noqa: E402
+from research.fundamentals import debt, g6_stamp, pit  # noqa: E402
 
 logger = logging.getLogger("validate_gates")
 
@@ -272,6 +273,24 @@ def g6d_debt_declarations(panel: pd.DataFrame, debt_free: dict) -> list[str]:
     return fails
 
 
+def g6_all(panel: pd.DataFrame) -> dict:
+    """G6 staleness ratchet plus the G6d debt declarations, in one verdict."""
+    from research.fundamentals.build_panel import _DEBT_FREE
+    g6 = g6_staleness(panel, load_staleness_baseline())
+    g6["failures"] += g6d_debt_declarations(panel, _DEBT_FREE)
+    return g6
+
+
+def _stamp_if_canonical(panel_path: Path, g6: dict) -> None:
+    """Write the G6 stamp, but only for the canonical panel: a check against some other
+    file (a mutation test, a candidate rebuild) must never stamp the real one."""
+    if Path(panel_path).resolve() != _PANEL_PATH.resolve():
+        return
+    stamp = g6_stamp.write_stamp(not g6["failures"], len(g6["failures"]),
+                                 panel_path=_PANEL_PATH, stamp_path=g6_stamp.STAMP_PATH)
+    logger.info("G6 stamp written: %s sha256=%s...", stamp["result"], stamp["panel_sha256"][:12])
+
+
 def write_staleness_baseline(panel: pd.DataFrame, path: Path = _STALENESS_BASELINE_PATH) -> int:
     stale = staleness_table(panel).sort_values(["concept", "ticker"])
     old = load_staleness_baseline(path)
@@ -309,11 +328,9 @@ def run() -> dict:
     logger.info("Loading panel %s ...", _PANEL_PATH)
     full = pit.load_panel(_PANEL_PATH)
     # --- G6 --- (every paneled name, guests included: the organ reads them all)
-    g6 = g6_staleness(full, load_staleness_baseline())
-    from research.fundamentals.build_panel import _DEBT_FREE
-    g6d = g6d_debt_declarations(full, _DEBT_FREE)
-    g6["failures"] += g6d
+    g6 = g6_all(full)
     _report_g6(g6)
+    _stamp_if_canonical(_PANEL_PATH, g6)
 
     panel = full[full["ticker"].isin(_canon_symbols())]     # guests (enabled=2) are not S&P coverage
     universe_n = _universe_size()
@@ -353,6 +370,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="run G6 only, against this panel instead of the built one")
     ap.add_argument("--write-baseline", action="store_true",
                     help="refreeze research/data/staleness_baseline.csv from the built panel")
+    ap.add_argument("--no-stamp", action="store_true",
+                    help="with --panel on the canonical panel: check only, leave g6_stamp.json alone (CI)")
     args = ap.parse_args(argv)
     logging.basicConfig(
         level=logging.INFO,
@@ -364,8 +383,10 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("G6 baseline frozen: %d known stale pairs -> %s", n, _STALENESS_BASELINE_PATH)
         return 0
     if args.panel is not None:
-        g6 = g6_staleness(pit.load_panel(args.panel), load_staleness_baseline())
+        g6 = g6_all(pit.load_panel(args.panel))
         _report_g6(g6)
+        if not args.no_stamp:
+            _stamp_if_canonical(args.panel, g6)
         return 1 if g6["failures"] else 0
     res = run()
     return 1 if res["g6_failures"] else 0
