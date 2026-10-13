@@ -20,11 +20,13 @@ research/data/edgar_pit_panel.csv.gz with the Interface-P columns, exactly:
 * Units: only USD (and ``shares`` for share counts) are kept; a fact in a foreign
   presentation currency is skipped and counted.
 
-One synthetic concept, ``total_debt``, is assembled by SUMMING a noncurrent+current
-tag pair at a matching (period_end, filed) key (four pairs, in priority order), then
-filling the keys no pair covered from the single-tag chain LongTermDebt /
-DebtLongtermAndShorttermCombinedAmount (unioned, not first-tag-wins). Names that are
-genuinely debt-free and tag no debt line at all (_DEBT_FREE) get an explicit 0.
+One synthetic concept, ``total_debt``, is the FINANCIAL debt (ПНЛ2): long-term debt
+with its current portion + short-term borrowings + commercial paper + finance leases,
+assembled within ONE filing snapshot from the filer's balance-sheet face lines, or by
+the value rules when the face is unusable (research/fundamentals/debt.py). Segment-
+split filers are read from their filing instances (debt.FILING_SPECS: the industrial
+part of F, GM, CAT ...); banks, broker-dealers and insurers get none (debt.DEBT_NA);
+names that are genuinely debt-free (_DEBT_FREE) get an explicit 0.
 
 CLI
 ---
@@ -46,6 +48,8 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+
+from research.fundamentals import debt as _debt  # noqa: E402
 
 logger = logging.getLogger("build_panel")
 
@@ -173,32 +177,40 @@ _NCI_EVIDENCE_N = 8
 # is clean; the valuation-organ М32 <1e6 guard stays as belt-and-suspenders.
 SHARES_SENTINEL_MIN = 1_000_000
 
-# total_debt: noncurrent+current PAIRS (summed within one filing), priority order,
-# then the single-tag chain for keys no pair covered. Issuers move between these
-# presentations over time: ORCL went to LongTermNotesAndLoans + NotesPayableCurrent
-# (its only LongTermDebt fact is a stray 0 at 2022-05-31), MU to
-# LongTermDebtAndCapitalLeaseObligations + DebtCurrent (LongTermDebt stops
-# 2025-11-27), SMCI to DebtLongtermAndShorttermCombinedAmount (LongTermDebt stops
-# 2023-06-30). Same ladder as valuation-organ scripts/build_cash_table.DEBT_FALLBACK,
-# except the combined tag stays LAST here so names already carried by a pair or by
-# LongTermDebt keep their long-term-debt definition.
-_DEBT_PAIRS = (
-    ("LongTermDebtNoncurrent", "LongTermDebtCurrent"),
-    ("LongTermNotesAndLoans", "NotesPayableCurrent"),
-    ("LongTermDebtAndCapitalLeaseObligations", "DebtCurrent"),
-    # its own current-portion partner: 53 names whose debt went stale had this
-    # pair on their latest balance sheet (12.10.2026)
-    ("LongTermDebtAndCapitalLeaseObligations", "LongTermDebtAndCapitalLeaseObligationsCurrent"),
-)
-_DEBT_FALLBACK_TAGS = ["LongTermDebt", "DebtLongtermAndShorttermCombinedAmount"]
+# total_debt = the FINANCIAL debt (ПНЛ2, 13.10.2026): long-term debt with its current
+# portion + short-term borrowings + commercial paper + finance leases, at carrying
+# value. The definition, its nesting rules and its tables (face lines, filing route,
+# not-applicable names) live in research/fundamentals/debt.py.
+_DEBT_CACHE_DIR = _REPO_ROOT / "research" / "cache" / "edgar_debt"
 
 # Names that are genuinely debt-free and therefore tag NO debt line: their
 # total_debt is an explicit 0 at every balance-sheet key (the Assets facts), not a
-# hole that reads like missing data. Each entry carries its evidence; a declared
-# name that starts tagging nonzero debt is logged so the declaration gets revisited.
+# hole that reads like missing data. Each entry carries its evidence: the latest
+# balance sheet's face (debt_face.csv: the presentation linkbase of that filing)
+# shows no debt line, that filing carries no nonzero debt fact, and the last nonzero
+# debt fact is old. A declared name that tags nonzero debt is logged here and FAILS
+# validate_gates G6d, so the declaration gets revisited.
 _DEBT_FREE: dict[str, str] = {
     "PLTR": "no borrowings tagged since LongTermDebtNoncurrent=0 at 2021-12-31; "
             "revolver undrawn (cache checked 12.10.2026)",
+    # ПНЛ2, 13.10.2026: <accn of the latest balance sheet> (filed): its face shows no
+    # debt line, that filing carries no nonzero debt-line tag; the last nonzero one ever
+    "ALGN": "0001097149-26-000060 (2026-08-05): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: FinanceLeaseLiability 56 млн (2019-03-31), усвоено 0 (2024-12-31)",
+    "ANET": "0001596532-26-000175 (2026-08-05): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: FinanceLeaseLiability 38 млн (2018-12-31)",
+    "CMG": "0001058090-26-000066 (2026-07-31): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: FinanceLeaseLiability 2 млн (2021-12-31)",
+    "DECK": "0000910521-26-000022 (2026-07-30): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: NotesPayable 30 млн (2020-12-31)",
+    "EXPD": "0001193125-26-334457 (2026-08-05): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: ShortTermBankLoansAndNotesPayable 30 млн (2025-12-31)",
+    "FFIV": "0001048695-26-000067 (2026-08-06): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: LongTermDebtCurrent 350 млн (2022-09-30)",
+    "GRMN": "0001193125-26-188908 (2026-04-29): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: никога",
+    "ISRG": "0001035267-26-000058 (2026-07-21): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: никога",
+    "MNST": "0001104659-26-092193 (2026-08-07): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: FinanceLeaseLiability 8 млн (2025-03-31)",
+    "MPWR": "0001628280-26-053275 (2026-08-05): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: OtherLongTermDebtNoncurrent 1 млн (2013-09-30)",
+    "TTD": "0001671933-26-000086 (2026-08-06): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: LongTermLineOfCredit 72 млн (2020-09-30)",
+    "VEEV": "0001393052-26-000036 (2026-08-27): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: FinanceLeaseLiability 1 млн (2020-10-31)",
+    "WSM": "0000719955-26-000208 (2026-08-28): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: LongTermDebtCurrent 299 млн (2021-01-31)",
+    "ERIE": "0001628280-26-051079 (2026-07-30): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: ShortTermBorrowings 40 млн (2022-06-30)",
+    "LULU": "0001397187-26-000127 (2026-09-03): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: никога",
+    "TROW": "0001628280-26-051335 (2026-07-31): балансът без ред за дълг, 0 ненулеви дългови тага; последен ненулев: DebtInstrumentFairValue 168 млн (2011-03-31)",
 }
 
 # Proven per-filer fallbacks (ПНЛ4, 13.10.2026). These tags are NOT the same line for
@@ -655,78 +667,58 @@ def _emit_rows(ticker: str, cik10: str, concept: str, unit: str, records: list[d
     return rows
 
 
-def _sum_pair(facts: dict, pair: tuple[str, str]) -> list[dict]:
-    """SUM one noncurrent+current pair at a matching (end, filed, accn) key, so we add
-    only figures from the SAME filing snapshot (never a noncurrent value from one
-    amendment with a current value from another). A key with only ONE leg is
-    skipped (a lone noncurrent figure is not total debt)."""
-    noncur = _facts_for_tag(facts, "us-gaap", pair[0], _USD)
-    cur = _facts_for_tag(facts, "us-gaap", pair[1], _USD)
-
-    def _key(r):
-        return (r.get("end"), r.get("filed"), r.get("accn"))
-
-    cur_by_key = {}
-    for r in cur:
-        cur_by_key.setdefault(_key(r), r)
-
+def _extract_total_debt(facts: dict, face: tuple | None = None, custom: bool = False) -> list[dict]:
+    """Synthetic total_debt records: one per filing snapshot (end, filed, accn) that
+    composes under debt.compose_face — the filer's balance-sheet face lines first,
+    the value rules otherwise. Figures are only ever added within ONE snapshot (never
+    a noncurrent value from one filing with a current value from another). On two
+    snapshots sharing (end, filed) the earlier accession wins."""
+    snaps = _debt.snapshots(lambda tag: _facts_for_tag(facts, "us-gaap", tag, _USD), extra=tuple(face or ()))
     out: list[dict] = []
-    for rn in noncur:
-        if "end" not in rn or "filed" not in rn or "val" not in rn:
+    seen: set[tuple] = set()
+    for (end, filed, accn) in sorted(snaps):
+        if (end, filed) in seen:
             continue
-        rc = cur_by_key.get(_key(rn))
-        if rc is None or "val" not in rc:
+        e = snaps[(end, filed, accn)]
+        val, _path = _debt.compose_face(e["tags"], face, custom)
+        if val is None:
             continue
-        out.append({
-            "end": rn["end"],
-            "filed": rn["filed"],
-            "val": rn["val"] + rc["val"],
-            "form": rn.get("form", ""),
-            "fy": rn.get("fy", ""),
-            "fp": rn.get("fp", ""),
-            "accn": rn.get("accn", ""),
-        })
+        seen.add((end, filed))
+        r = e["rec"]
+        out.append({"end": end, "filed": filed, "val": val, "accn": accn,
+                    "form": r.get("form", ""), "fy": r.get("fy", ""), "fp": r.get("fp", "")})
     return out
 
 
-def _extract_total_debt(facts: dict) -> list[dict]:
-    """Assemble synthetic total_debt records.
-
-    Preference 1 — the _DEBT_PAIRS in order, each summed within one filing
-    (_sum_pair). A later pair only fills (end, filed) keys an earlier pair did not.
-
-    Preference 2 — the single-tag chain (LongTermDebt, then the combined tag),
-    UNIONED (not first-tag-wins) and used only for (end, filed) keys no pair
-    produced, so a company that reports several presentations does not
-    double-count, and one stray LongTermDebt fact (ORCL: a single 0 at 2022-05-31)
-    can no longer shut the combined tag out for good.
-    """
-    out: list[dict] = []
-    produced_end_filed: set[tuple] = set()
-    for pair in _DEBT_PAIRS:
-        for r in _sum_pair(facts, pair):
-            k = (r["end"], r["filed"])
-            if k in produced_end_filed:
-                continue
-            out.append(r)
-            produced_end_filed.add(k)
-
-    _tags, fb_recs = _union_chain(facts, "us-gaap", _DEBT_FALLBACK_TAGS, _USD)
-    for r in fb_recs:
-        if (r["end"], r["filed"]) in produced_end_filed:
-            continue
-        out.append(r)
-
-    return out
+def _filing_route_debt(ticker: str, facts: dict, face_row: tuple, cache: dict, spec: dict) -> list[dict]:
+    """total_debt of a filing-route name (debt.filing_spec), from its filing instances.
+    A "sum" (consolidated) name keeps the companyfacts figure for every period the
+    filing route does not produce (its history before 2019, a multi-registrant filing
+    whose face line has no parent-level fact); a "member" (industrial-only) name does
+    not, so its series never mixes the consolidated figure with the industrial one."""
+    recs = _debt.filing_records(spec, face_row[2], cache)
+    if spec["mode"] == "sum":
+        ends = {r["end"] for r in recs}
+        recs += [r for r in _extract_total_debt(facts, face_row[0], face_row[1]) if r["end"] not in ends]
+    return recs
 
 
 def _debt_free_zeros(facts: dict, covered: set[tuple]) -> list[dict]:
     """Explicit total_debt = 0 for a declared debt-free name, one record per
-    balance-sheet key (the Assets facts) that real debt facts do not cover."""
+    balance-sheet key (the Assets facts) that real debt facts do not cover, and only
+    AFTER the last nonzero debt-line fact (EXPD: bank loans 30M at 2025-12-31 must
+    not read as 0 there)."""
+    last_debt = ""
+    for tag, concept in facts.get("us-gaap", {}).items():
+        if not _debt.is_debt_line(tag):
+            continue
+        for r in concept.get("units", {}).get(_USD, []) or []:
+            if "start" not in r and r.get("val") and r.get("end", "") > last_debt:
+                last_debt = r["end"]
     out: list[dict] = []
     seen: set[tuple] = set(covered)
     for r in _facts_for_tag(facts, "us-gaap", "Assets", _USD):
-        if "end" not in r or "filed" not in r:
+        if "end" not in r or "filed" not in r or r["end"] <= last_debt:
             continue
         k = (r["end"], r["filed"])
         if k in seen:
@@ -738,7 +730,8 @@ def _debt_free_zeros(facts: dict, covered: set[tuple]) -> list[dict]:
 
 
 def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict,
-                     class_spec: dict | None = None, class_cache: dict | None = None) -> list[list]:
+                     class_spec: dict | None = None, class_cache: dict | None = None,
+                     debt_face: tuple | None = None, debt_cache: dict | None = None) -> list[list]:
     """Extract all canonical concepts for one company -> panel rows. A ticker in the
     coefficient table also gets its per-class economic share counts (class_cache =
     its research/cache/edgar_classes JSON), winning an exact key collision."""
@@ -776,11 +769,22 @@ def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict,
         else:
             stats["missing_concept"][concept] = stats["missing_concept"].get(concept, 0) + 1
 
-    # Synthetic total_debt.
-    debt_recs = _extract_total_debt(facts)
+    # Synthetic total_debt (definition: research/fundamentals/debt.py).
+    if ticker in _debt.DEBT_NA:
+        stats.setdefault("debt_na", []).append(ticker)
+        return rows
+    face_row = debt_face if debt_face is not None else (None, False, ())
+    route = _debt.filing_spec(ticker, face_row)
+    if route is not None:
+        debt_recs = _filing_route_debt(ticker, facts, face_row, debt_cache or {}, route)
+    else:
+        debt_recs = _extract_total_debt(facts, face_row[0], face_row[1])
     if ticker in _DEBT_FREE:
+        # old, repaid debt is history; debt at the latest balance sheet breaks the claim
         nonzero = [r for r in debt_recs if r["val"]]
-        if nonzero:
+        latest = max((r["end"] for r in _facts_for_tag(facts, "us-gaap", "Assets", _USD) if "end" in r),
+                     default="")
+        if nonzero and max(r["end"] for r in nonzero) >= latest:
             last = max(nonzero, key=lambda r: r["end"])
             logger.warning("%s is declared debt-free but tags debt %s at %s; revisit _DEBT_FREE",
                            ticker, last["val"], last["end"])
@@ -815,6 +819,7 @@ def build(limit: int | None = None) -> dict:
         cik_to_tickers.setdefault(cik, []).append(tk)
 
     class_table = load_class_table()
+    debt_face = _debt.read_face()
 
     cache_files = sorted(_CACHE_DIR.glob("CIK*.json"))
     if limit is not None:
@@ -865,7 +870,15 @@ def build(limit: int | None = None) -> dict:
                         ccache = json.loads(cpath.read_text(encoding="utf-8"))
                     else:
                         stats.setdefault("class_cache_missing", []).append(ticker)
-                rows = _extract_company(ticker, cik10, facts, stats, spec, ccache)
+                dcache = None
+                if _debt.filing_spec(ticker, debt_face.get(ticker)) is not None:
+                    dpath = _DEBT_CACHE_DIR / f"CIK{cik10}.json"
+                    if dpath.exists():
+                        dcache = json.loads(dpath.read_text(encoding="utf-8"))
+                    else:
+                        stats.setdefault("debt_cache_missing", []).append(ticker)
+                rows = _extract_company(ticker, cik10, facts, stats, spec, ccache,
+                                        debt_face.get(ticker), dcache)
                 w.writerows(rows)
                 stats["rows"] += len(rows)
                 stats["companies_seen"] += 1
@@ -895,6 +908,12 @@ def build(limit: int | None = None) -> dict:
         for k in ("class_cache_missing", "class_unknown_member", "class_ratio_missing"):
             if stats.get(k):
                 logger.warning("shares_outstanding per class: %s %s", k, sorted(stats[k])[:20])
+    logger.info("total_debt: %d names without (debt.DEBT_NA), filing route %d",
+                len(stats.get("debt_na", [])),
+                sum(1 for t, _ in universe if _debt.filing_spec(t, debt_face.get(t)) is not None))
+    if stats.get("debt_cache_missing"):
+        logger.warning("total_debt: no filing cache for %s (run collect_debt_filing)",
+                       sorted(stats["debt_cache_missing"]))
     if stats["shares_sentinels_dropped"]:
         logger.info(
             "shares_outstanding: %d sub-1e6 sentinel facts dropped at source across %d names: %s",

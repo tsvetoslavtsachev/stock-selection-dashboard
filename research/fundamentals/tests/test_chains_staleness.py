@@ -47,15 +47,18 @@ def test_debt_notes_pair_beats_stray_longtermdebt_zero():
     assert recs[("2022-05-31", "2022-06-21")] == 0
 
 
-def test_debt_pair_needs_both_legs_from_one_filing():
+def test_debt_legs_from_two_filings_are_never_summed():
+    # each snapshot stands alone: the noncurrent figure of filing x is its own
+    # "noncurrent only" total (no current part reported THERE), and the lone current
+    # figure of filing y is no total at all (ПНЛ2, debt.compose)
     facts = _facts(
         LongTermDebtAndCapitalLeaseObligations=[_f("2026-05-28", 5.1, "2026-06-25", accn="x")],
-        DebtCurrent=[_f("2026-05-28", 0.6, "2026-06-25", accn="y")],   # other filing snapshot
+        DebtCurrent=[_f("2026-05-28", 0.6, "2026-06-26", accn="y")],
     )
-    assert build_panel._extract_total_debt(facts) == []
+    assert [(r["filed"], r["val"]) for r in build_panel._extract_total_debt(facts)] == [("2026-06-25", 5.1)]
 
 
-def test_debt_earlier_pair_wins_same_key():
+def test_debt_one_key_one_record_no_double_count():
     facts = _facts(
         LongTermDebtNoncurrent=[_f("2026-06-30", 10, "2026-07-30")],
         LongTermDebtCurrent=[_f("2026-06-30", 1, "2026-07-30")],
@@ -64,7 +67,9 @@ def test_debt_earlier_pair_wins_same_key():
         LongTermDebt=[_f("2026-06-30", 11, "2026-07-30")],
     )
     recs = build_panel._extract_total_debt(facts)
-    assert [r["val"] for r in recs] == [11]   # split pair, once; no double count
+    # noncurrent 10 + DebtCurrent 2 (current LTD 1 + short-term 1); LongTermDebt 11 + the
+    # short-term remainder (2 - 1) agrees, so one record of 12
+    assert [r["val"] for r in recs] == [12]
 
 
 def test_debt_free_name_gets_explicit_zero():

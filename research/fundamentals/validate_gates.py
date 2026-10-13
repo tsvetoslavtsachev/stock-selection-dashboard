@@ -29,6 +29,9 @@ G6 — staleness ratchet (12.10.2026)
       A still-stale pair with an empty reason FAILS G6 (UNEXPLAINED), and
       --write-baseline keeps the reasons of the pairs it carries over, so a newly
       frozen gap stays red until someone writes down why it is there.
+    * G6d (ПНЛ2, 13.10.2026): a name declared debt-free (build_panel._DEBT_FREE) must
+      carry total_debt 0 at its latest balance sheet, and a not-applicable name
+      (debt.DEBT_NA: banks, broker-dealers, insurers) must carry no total_debt at all.
 
 CLI
     python -m research.fundamentals.validate_gates
@@ -51,7 +54,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from research.fundamentals import pit  # noqa: E402
+from research.fundamentals import debt, pit  # noqa: E402
 
 logger = logging.getLogger("validate_gates")
 
@@ -255,6 +258,20 @@ def g6_staleness(panel: pd.DataFrame, baseline: pd.DataFrame) -> dict:
             "healed": healed, "failures": failures}
 
 
+def g6d_debt_declarations(panel: pd.DataFrame, debt_free: dict) -> list[str]:
+    """Failures of the debt declarations: a _DEBT_FREE name whose latest total_debt is
+    nonzero, a debt.DEBT_NA name with any total_debt row."""
+    d = panel[panel["concept"] == "total_debt"]
+    fails = []
+    for t, g in d[d["ticker"].isin(list(debt_free))].groupby("ticker"):
+        last = g.sort_values(["period_end", "filed"]).iloc[-1]
+        if last["value"] != 0:
+            fails.append(f"DEBT_FREE {t}: total_debt {last['value']:,.0f} at {last['period_end']}")
+    for t in sorted(set(d["ticker"]) & set(debt.DEBT_NA)):
+        fails.append(f"DEBT_NA {t}: has total_debt rows")
+    return fails
+
+
 def write_staleness_baseline(panel: pd.DataFrame, path: Path = _STALENESS_BASELINE_PATH) -> int:
     stale = staleness_table(panel).sort_values(["concept", "ticker"])
     old = load_staleness_baseline(path)
@@ -293,6 +310,9 @@ def run() -> dict:
     full = pit.load_panel(_PANEL_PATH)
     # --- G6 --- (every paneled name, guests included: the organ reads them all)
     g6 = g6_staleness(full, load_staleness_baseline())
+    from research.fundamentals.build_panel import _DEBT_FREE
+    g6d = g6d_debt_declarations(full, _DEBT_FREE)
+    g6["failures"] += g6d
     _report_g6(g6)
 
     panel = full[full["ticker"].isin(_canon_symbols())]     # guests (enabled=2) are not S&P coverage
