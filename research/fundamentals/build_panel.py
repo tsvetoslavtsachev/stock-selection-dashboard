@@ -50,6 +50,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from research.fundamentals import debt as _debt  # noqa: E402
+from research.fundamentals import collect_own_tags as _own  # noqa: E402
 
 logger = logging.getLogger("build_panel")
 
@@ -279,6 +280,13 @@ _DA_NA: dict[str, str] = {
     "WRB": "застраховател: DepreciationAndAmortization и DepreciationAmortizationAndAccretionNet са нетното натрупване по инвестициите (2025 FY -48,1 млн), не оперативна амортизация (ПНЛ4б, Р2)",
     "PRU": "застраховател: DepreciationDepletionAndAmortization носи нетната амортизация на премиите и дисконтите по инвестициите (FY2024 383 млн, FY2025 128, 2026 Q1 143, H1 33, т.е. Q2 -110), не оперативна амортизация (ПНЛ4б, Ц. 13.10.2026)",
 }
+# Own (extension) tags, BY NAME (ПНЛ4г, 13.10.2026): own_tags.csv lists the filers whose
+# us-gaap line stopped because they moved it to their own tag; collect_own_tags reads
+# those facts from the filings' instances (companyfacts drops them). Admitted after the
+# fallbacks by the same overlap proof against the filer's own series, only CONTINUING it
+# (facts ending after its last period_end). Never global: a tag outside the table, or one
+# whose proof fails (ACN, AMT, MAR, TSLA, TPL, URI), adds nothing.
+_OWN_CACHE_DIR = _own.CACHE_DIR
 _IDENTITY_TAGS: dict[str, list[str]] = {
     "net_income": ["NetIncomeLossAvailableToCommonStockholdersBasic", _NI_CONSOLIDATED_TAG],
     "dividends_paid": ["PaymentsOfOrdinaryDividends"],
@@ -710,6 +718,17 @@ def _continue_with_fallbacks(facts: dict, concept: str, chain: list[dict]) -> tu
     return out, admitted
 
 
+def _continue_with_own(series: list[dict], cand: list[dict]) -> tuple[list[dict], bool]:
+    """Append the own tag's facts ending after the series' last period_end, when the
+    overlap proof holds (see _OWN_CACHE_DIR). Returns (records, admitted)."""
+    if not series or not cand or not _overlap_proven(series, cand):
+        return series, False
+    last = max(r["end"] for r in series)
+    seen = {_fact_key(r) for r in series}
+    new = [r for r in cand if r["end"] > last and _fact_key(r) not in seen]
+    return (series + new, True) if new else (series, False)
+
+
 def _emit_rows(ticker: str, cik10: str, concept: str, unit: str, records: list[dict]) -> list[list]:
     """Turn raw fact records into panel rows. Instantaneous facts (no 'start')
     get an empty period_start. Records missing 'val'/'end'/'filed' are dropped."""
@@ -797,10 +816,14 @@ def _debt_free_zeros(facts: dict, covered: set[tuple]) -> list[dict]:
 
 def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict,
                      class_spec: dict | None = None, class_cache: dict | None = None,
-                     debt_face: tuple | None = None, debt_cache: dict | None = None) -> list[list]:
+                     debt_face: tuple | None = None, debt_cache: dict | None = None,
+                     own_specs: dict[str, tuple[str, ...]] | None = None,
+                     own_cache: dict | None = None) -> list[list]:
     """Extract all canonical concepts for one company -> panel rows. A ticker in the
     coefficient table also gets its per-class economic share counts (class_cache =
-    its research/cache/edgar_classes JSON), winning an exact key collision."""
+    its research/cache/edgar_classes JSON), winning an exact key collision. A ticker in
+    own_tags.csv (own_specs: concept -> own tags) continues that concept from own_cache
+    (its research/cache/edgar_own JSON) only where the overlap proof holds."""
     rows: list[list] = []
 
     for concept, (namespace, tags, unit) in _CONCEPTS.items():
@@ -832,6 +855,11 @@ def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict,
             recs, admitted = _continue_with_fallbacks(facts, concept, recs)
             for tag in admitted:
                 stats.setdefault("fallbacks", {}).setdefault(f"{concept}:{tag}", []).append(ticker)
+        if own_specs and concept in own_specs:
+            tags = own_specs[concept]
+            recs, ok = _continue_with_own(recs, _own.own_records(own_cache or {}, tags))
+            stats.setdefault("own_admitted" if ok else "own_refused", []).append(
+                f"{ticker}.{concept}:{'+'.join(tags)}")
 
         if recs:
             rows.extend(_emit_rows(ticker, cik10, concept, unit, recs))
@@ -888,6 +916,9 @@ def build(limit: int | None = None) -> dict:
         cik_to_tickers.setdefault(cik, []).append(tk)
 
     class_table = load_class_table()
+    own_table: dict[str, dict[str, tuple[str, ...]]] = {}
+    for (tk, concept), tags in _own.load_table().items():
+        own_table.setdefault(tk, {})[concept] = tags
     debt_face = _debt.read_face()
 
     cache_files = sorted(_CACHE_DIR.glob("CIK*.json"))
@@ -946,8 +977,15 @@ def build(limit: int | None = None) -> dict:
                         dcache = json.loads(dpath.read_text(encoding="utf-8"))
                     else:
                         stats.setdefault("debt_cache_missing", []).append(ticker)
+                ospecs, ocache = own_table.get(ticker), None
+                if ospecs:
+                    opath = _OWN_CACHE_DIR / f"CIK{cik10}.json"
+                    if opath.exists():
+                        ocache = json.loads(opath.read_text(encoding="utf-8"))
+                    else:
+                        stats.setdefault("own_cache_missing", []).append(ticker)
                 rows = _extract_company(ticker, cik10, facts, stats, spec, ccache,
-                                        debt_face.get(ticker), dcache)
+                                        debt_face.get(ticker), dcache, ospecs, ocache)
                 w.writerows(rows)
                 stats["rows"] += len(rows)
                 stats["companies_seen"] += 1
@@ -966,6 +1004,11 @@ def build(limit: int | None = None) -> dict:
                     stats["profitloss_refused"])
     for key, names in sorted(stats.get("fallbacks", {}).items()):
         logger.info("proven fallback %s continues %d names: %s", key, len(names), names)
+    if stats.get("own_admitted") or stats.get("own_refused"):
+        logger.info("own tags (own_tags.csv): proven %s; proof fails %s",
+                    stats.get("own_admitted", []), stats.get("own_refused", []))
+    if stats.get("own_cache_missing"):
+        logger.warning("own tags: no cache for %s (run collect_own_tags)", sorted(stats["own_cache_missing"]))
     if stats.get("da_na"):
         logger.info("depreciation_amortization: not applicable (_DA_NA) %s", stats["da_na"])
     if class_table:

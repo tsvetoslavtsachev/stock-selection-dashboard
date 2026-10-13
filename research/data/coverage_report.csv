@@ -9,10 +9,10 @@ net_income,501,0.996
 shares_outstanding,500,0.994
 revenues,493,0.9801
 total_debt,457,0.9085
-capex,445,0.8847
+capex,449,0.8926
 buybacks,436,0.8668
 current_liabilities,422,0.839
-depreciation_amortization,404,0.8032
+depreciation_amortization,405,0.8052
 dividends_paid,403,0.8012
 operating_income,397,0.7893
 gross_profit,193,0.3837

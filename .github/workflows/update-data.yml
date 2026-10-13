@@ -57,7 +57,8 @@ jobs:
       # ПНЛ5 (13.10.2026): the SEC panel guards. The panel is in git, so CI only READS it:
       # no collector runs here (the panel is rebuilt in the monthly ritual, in this order:
       # collect_edgar -> collect_edgar_classes -> collect_debt_face -> collect_debt_filing
-      # -> build_panel -> validate_gates, which re-writes research/data/g6_stamp.json).
+      # -> collect_own_tags -> build_panel -> validate_gates, which re-writes
+      # research/data/g6_stamp.json).
       # --no-stamp: CI checks, it never rewrites the stamp.
       - name: G6 staleness + G6d debt gate (SEC panel)
         run: python -m research.fundamentals.validate_gates --panel research/data/edgar_pit_panel.csv.gz --no-stamp

@@ -1,0 +1,13 @@
+ticker,concept,tags,belezhka
+ACN,depreciation_amortization,acn:DepreciationAmortizationAndOther,„Depreciation, amortization and other“; веригата е в подаването само с измерение (ПНЛ4в)
+AMT,depreciation_amortization,amt:DepreciationAmortizationAndAccretionIncludingDiscontinuedOperations,„Depreciation, amortization and accretion“ (ПНЛ4в)
+DLTR,depreciation_amortization,dltr:DepreciationDepletionandAmortizationExcludingDebtDiscountAndIssuanceCosts,„Depreciation and amortization“; веригата е в подаването само с измерение (ПНЛ4в)
+FE,depreciation_amortization,fe:DepreciationDepletionAmortizationAndImpairments,„Depreciation and amortization“; името носи и обезценките (ПНЛ4в)
+MAR,depreciation_amortization,mar:DepreciationAmortizationAndOther,„Depreciation, amortization, and other“ (ПНЛ4в)
+TSLA,depreciation_amortization,tsla:DepreciationAmortizationAndImpairment,„Depreciation, amortization and impairment“; веригата е в подаването само с измерение (ПНЛ4в)
+CI,capex,ci:PaymentsForProceedsFromPropertyPlantAndEquipment,„Property and equipment purchases, net“ (ПНЛ4в)
+COP,capex,cop:PaymentToAcquireProductiveAssetsAndInvestments,„Capital expenditures and investments“, вкл. инвестиции (ПНЛ4в)
+D,capex,d:PaymentsToAcquirePropertyPlantAndEquipmentIncludingNuclearFuel,„Plant construction and other property additions (including nuclear fuel)“; us-gaap PP&E само с измерение (ПНЛ4в)
+TPL,capex,tpl:PaymentsToAcquireEquipmentAndOtherAcquisitionOfRealEstate,„Purchases of fixed assets“; недвижимите имоти отделно (ПНЛ4в)
+URI,capex,uri:PaymentsToAcquirePropertySubjectToOrAvailableForOperatingLease+uri:PaymentsToAcquirePropertyPlantAndEquipmentAndIntangibleAssets,наемно + ненаемно оборудване, сбор от едно подаване (ПНЛ4в)
+WRB,capex,wrb:PaymentstoAcquirePropertyPlantandEquipmentNet,„Net proceeds from sale (purchases) of property, furniture and equipment“ (ПНЛ4в)
