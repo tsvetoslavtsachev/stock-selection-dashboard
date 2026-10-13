@@ -307,3 +307,140 @@ def test_proxy_statement_facts_never_enter():
     proxy = _f("2025-12-31", 546.0, "2026-04-23", start="2025-01-01", form="DEF 14A")
     recs, _ = build_panel._extract_net_income(_facts(NetIncomeLoss=[tenk, proxy]))
     assert [r["val"] for r in recs] == [195.0]
+
+
+# ---------------------------------------------------------------------------
+# depreciation_amortization: the full line only (ПНЛ4б)
+# ---------------------------------------------------------------------------
+def _da_rows(rows):
+    return sorted((r[4], r[5], r[10]) for r in rows if r[2] == "depreciation_amortization")
+
+
+def test_depreciation_never_joins_the_full_line():
+    # BAX shape: the full line comes only year-to-date, Depreciation tags the discrete
+    # quarter beside it. The old union let pit take the narrow quarter.
+    dda = [_f("2026-06-30", 480.0, "2026-07-30", start="2026-01-01")]
+    dep = [_f("2026-06-30", 160.0, "2026-07-30", start="2026-04-01")]
+    rows = build_panel._extract_company("ZZZ", "0000000001",
+                                        _facts(DepreciationDepletionAndAmortization=dda, Depreciation=dep),
+                                        {"missing_concept": {}})
+    assert _da_rows(rows) == [("2026-01-01", "2026-06-30", 480.0)]
+
+
+def test_depreciation_alone_is_an_honest_gap():
+    dep = [_f("2026-06-30", 160.0, "2026-07-30", start="2026-04-01")]
+    stats = {"missing_concept": {}}
+    rows = build_panel._extract_company("ZZZ", "0000000001", _facts(Depreciation=dep), stats)
+    assert _da_rows(rows) == [] and stats["missing_concept"]["depreciation_amortization"] == 1
+
+
+def _dq(end, start, val, filed, accn):
+    return _f(end, val, filed, accn=accn, start=start)
+
+
+def test_sum_continues_the_full_line_when_proven_on_shared_periods():
+    # SPGI shape: the full line stops; Depreciation + AmortizationOfIntangibleAssets from
+    # one filing equals it on the shared periods and carries on. Only later periods enter.
+    dda = [_dq("2024-03-31", "2024-01-01", 100.0, "2024-04-30", "k1"),
+           _dq("2024-06-30", "2024-04-01", 110.0, "2024-07-30", "k2")]
+    dep = [_dq("2024-03-31", "2024-01-01", 60.0, "2025-04-30", "k3"),
+           _dq("2024-06-30", "2024-04-01", 66.0, "2025-07-30", "k4"),
+           _dq("2025-06-30", "2025-04-01", 70.0, "2025-07-30", "k4")]
+    amort = [_dq("2024-03-31", "2024-01-01", 40.0, "2025-04-30", "k3"),
+             _dq("2024-06-30", "2024-04-01", 44.0, "2025-07-30", "k4"),
+             _dq("2025-06-30", "2025-04-01", 50.0, "2025-07-30", "k4")]
+    facts = _facts(DepreciationDepletionAndAmortization=dda, Depreciation=dep, AmortizationOfIntangibleAssets=amort)
+    recs, admitted = build_panel._continue_with_fallbacks(facts, "depreciation_amortization", list(dda))
+    assert len(admitted) == 1 and admitted[0].startswith("Depreciation+")
+    assert [(r["end"], r["val"]) for r in recs] == [
+        ("2024-03-31", 100.0), ("2024-06-30", 110.0), ("2025-06-30", 120.0)]
+
+
+def test_sum_refused_when_the_full_line_is_wider():
+    # AON shape: the full line carries more than PP&E + intangibles.
+    dda = [_dq("2024-03-31", "2024-01-01", 130.0, "2024-04-30", "k1"),
+           _dq("2024-06-30", "2024-04-01", 140.0, "2024-07-30", "k2")]
+    dep = [_dq("2024-03-31", "2024-01-01", 60.0, "2025-04-30", "k3"),
+           _dq("2024-06-30", "2024-04-01", 66.0, "2025-07-30", "k4"),
+           _dq("2025-06-30", "2025-04-01", 70.0, "2025-07-30", "k4")]
+    amort = [_dq("2024-03-31", "2024-01-01", 40.0, "2025-04-30", "k3"),
+             _dq("2024-06-30", "2024-04-01", 44.0, "2025-07-30", "k4"),
+             _dq("2025-06-30", "2025-04-01", 50.0, "2025-07-30", "k4")]
+    facts = _facts(DepreciationDepletionAndAmortization=dda, Depreciation=dep, AmortizationOfIntangibleAssets=amort)
+    recs, admitted = build_panel._continue_with_fallbacks(facts, "depreciation_amortization", list(dda))
+    assert admitted == [] and len(recs) == 2
+
+
+def test_sum_never_pairs_parts_from_two_filings():
+    dep = [_dq("2025-06-30", "2025-04-01", 70.0, "2025-07-30", "k4")]
+    amort = [_dq("2025-06-30", "2025-04-01", 50.0, "2025-08-15", "k5")]   # 10-Q/A, other accn
+    assert build_panel._sum_records(_facts(Depreciation=dep, AmortizationOfIntangibleAssets=amort),
+                                    "Depreciation", ("AmortizationOfIntangibleAssets",)) == []
+
+
+def test_da_not_applicable_name_gets_no_rows():
+    dda = [_f("2026-06-30", -37.6, "2026-07-30", start="2026-01-01")]
+    stats = {"missing_concept": {}}
+    rows = build_panel._extract_company("WRB", "0000011544", _facts(DepreciationAndAmortization=dda), stats)
+    assert _da_rows(rows) == [] and stats["da_na"] == ["WRB"]
+
+
+def test_g6a_flags_a_bare_depreciation_row_only(tmp_path):
+    import json
+    facts = _facts(DepreciationDepletionAndAmortization=[_f("2026-06-30", 480.0, "2026-07-30", start="2026-01-01")],
+                   Depreciation=[_f("2026-06-30", 160.0, "2026-07-30", start="2026-04-01")])
+    (tmp_path / "CIK0000000001.json").write_text(json.dumps({"facts": facts}), encoding="utf-8")
+    row = dict(ticker="ZZZ", cik=1, concept="depreciation_amortization", unit="USD", form="10-Q", fy=2026, fp="Q2")
+    full = dict(row, period_start=pd.Timestamp("2026-01-01"), period_end=pd.Timestamp("2026-06-30"),
+                filed=pd.Timestamp("2026-07-30"), value=480.0)
+    narrow = dict(row, period_start=pd.Timestamp("2026-04-01"), period_end=pd.Timestamp("2026-06-30"),
+                  filed=pd.Timestamp("2026-07-30"), value=160.0)
+    assert validate_gates.g6a_da_full_line(pd.DataFrame([full]), tmp_path) == []
+    fails = validate_gates.g6a_da_full_line(pd.DataFrame([full, narrow]), tmp_path)
+    assert len(fails) == 1 and fails[0].startswith("DA_NARROW ZZZ: 1 rows")
+    assert validate_gates.g6a_da_full_line(pd.DataFrame([dict(full, ticker="WRB")]), tmp_path)[0].startswith("DA_NA WRB")
+
+
+def test_g6a_skipped_without_cache(tmp_path):
+    assert validate_gates.g6a_da_full_line(pd.DataFrame(columns=["ticker", "cik", "concept"]), tmp_path) == []
+
+
+def _sum_parts(rows):
+    dep = [_dq(e, st, d, f, a) for st, e, d, _, f, a in rows]
+    amort = [_dq(e, st, m, f, a) for st, e, _, m, f, a in rows]
+    return dep, amort
+
+
+def test_proven_sum_fills_periods_once_the_full_line_went_annual_only():
+    # SPGI shape: the full line is tagged only for the fiscal year since 2024; the
+    # quarterly cash flow carries the two parts. The quarter and the 9M level Q4 needs
+    # come from the sum; the full line's own FY is never touched.
+    dda = [_dq("2023-06-30", "2023-04-01", 100.0, "2023-07-30", "k1"),
+           _dq("2024-12-31", "2024-01-01", 420.0, "2025-02-10", "k3")]
+    dep, amort = _sum_parts([
+        ("2023-04-01", "2023-06-30", 60.0, 40.0, "2023-07-30", "k1"),
+        ("2024-07-01", "2024-09-30", 66.0, 44.0, "2024-10-30", "k2"),
+        ("2024-01-01", "2024-09-30", 190.0, 120.0, "2024-10-30", "k2"),
+        ("2024-01-01", "2024-12-31", 300.0, 120.2, "2025-02-10", "k3")])     # 420.2: agrees
+    facts = _facts(DepreciationDepletionAndAmortization=dda, Depreciation=dep, AmortizationOfIntangibleAssets=amort)
+    recs, admitted = build_panel._continue_with_fallbacks(facts, "depreciation_amortization", list(dda))
+    assert len(admitted) == 1
+    assert sorted((r.get("start"), r["end"], r["val"]) for r in recs) == [
+        ("2023-04-01", "2023-06-30", 100.0),
+        ("2024-01-01", "2024-09-30", 310.0),          # filled
+        ("2024-01-01", "2024-12-31", 420.0),          # the full line's own FY, kept
+        ("2024-07-01", "2024-09-30", 110.0)]          # filled
+
+
+def test_proven_sum_never_fills_a_full_line_that_is_still_quarterly():
+    # BALL shape: the full line is quarterly to the end; a 9M the sum carries and the
+    # full line does not is NOT added (only the annual-only case is filled).
+    dda = [_dq("2024-06-30", "2024-04-01", 100.0, "2024-07-30", "k1"),
+           _dq("2024-09-30", "2024-07-01", 110.0, "2024-10-30", "k2")]
+    dep, amort = _sum_parts([
+        ("2024-04-01", "2024-06-30", 60.0, 40.0, "2024-07-30", "k1"),
+        ("2024-07-01", "2024-09-30", 66.0, 44.0, "2024-10-30", "k2"),
+        ("2024-01-01", "2024-09-30", 190.0, 120.0, "2024-10-30", "k2")])
+    facts = _facts(DepreciationDepletionAndAmortization=dda, Depreciation=dep, AmortizationOfIntangibleAssets=amort)
+    recs, admitted = build_panel._continue_with_fallbacks(facts, "depreciation_amortization", list(dda))
+    assert admitted == [] and len(recs) == 2

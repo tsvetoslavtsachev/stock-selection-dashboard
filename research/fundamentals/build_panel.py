@@ -112,10 +112,15 @@ _CONCEPTS: dict[str, tuple[str, list[str], str]] = {
         "CashAndCashEquivalentsAtCarryingValue",
         "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
     ], _USD),
+    # The FULL line only (ПНЛ4б, 13.10.2026). `Depreciation` is the PP&E part alone and
+    # never joins this union: 200 names tag it beside the full line, and the union then
+    # took its discrete quarter over the full line's year-to-date one, or differenced a
+    # full-line FY against a Depreciation 9M (36 names moved, BAX EBITDA -43%; AMD, ELV
+    # negative TTM). A filer that stopped tagging the full line continues only through a
+    # proven substitute (_FALLBACK_TAGS, _FALLBACK_SUMS); otherwise an honest gap.
     "depreciation_amortization": ("us-gaap", [
         "DepreciationDepletionAndAmortization",
         "DepreciationAndAmortization",
-        "Depreciation",
     ], _USD),
     "operating_cash_flow": ("us-gaap", [
         "NetCashProvidedByUsedInOperatingActivities",
@@ -246,6 +251,25 @@ _FALLBACK_TAGS: dict[str, list[str]] = {
     # after preferred dividends: the basic-EPS numerator (equal to NetIncomeLoss for
     # a filer without preferred stock; BKNG tags its 2026 quarters only with it)
     "net_income": ["NetIncomeLossAvailableToCommonStockholdersBasic"],
+}
+# Proven per-filer SUMS (ПНЛ4б, 13.10.2026): (base tag, part tags) added from ONE
+# filing (same accn, start, end; the first part tag that filing carries for the
+# period). Admitted after _FALLBACK_TAGS by the same overlap proof. Depreciation +
+# intangible amortization equals the full D&A line at 8 of the 31 names where both
+# can be compared and differs at 23 (the full line also carries software, contract
+# cost and right-of-use amortization), so it is never a global definition. Unlike a
+# fallback tag, a proven sum also fills the periods the series lacks after its last
+# sub-annual period (a full line gone annual-only), never a period the series has.
+_FALLBACK_SUMS: dict[str, list[tuple[str, tuple[str, ...]]]] = {
+    "depreciation_amortization": [("Depreciation", (
+        "AmortizationOfIntangibleAssets",
+        "FiniteLivedIntangibleAssetsAmortizationExpense",
+        "AmortizationOfAcquiredIntangibleAssets",
+    ))],
+}
+# Names whose D&A tags are not operating D&A: no rows, the gap is explained in G6.
+_DA_NA: dict[str, str] = {
+    "WRB": "застраховател: DepreciationAndAmortization и DepreciationAmortizationAndAccretionNet са нетното натрупване по инвестициите (2025 FY -48,1 млн), не оперативна амортизация (ПНЛ4б, Р2)",
 }
 _IDENTITY_TAGS: dict[str, list[str]] = {
     "net_income": ["NetIncomeLossAvailableToCommonStockholdersBasic", _NI_CONSOLIDATED_TAG],
@@ -618,15 +642,40 @@ def _identity_proven(facts: dict, concept: str, cand: list[dict]) -> bool:
             and all(_agrees(per_share[k] * shares[k], vals[k], _IDENTITY_TOL) for k in keys))
 
 
+def _is_annual(r: dict) -> bool:
+    return bool(r.get("start")) and (date.fromisoformat(r["end"]) - date.fromisoformat(r["start"])).days >= 350
+
+
+def _sum_records(facts: dict, base: str, parts: tuple[str, ...]) -> list[dict]:
+    """base + the first part tag carried by the SAME filing for the same period
+    (_FALLBACK_SUMS); a base fact without a part in its own filing is dropped."""
+    part: dict[tuple, dict] = {}
+    for tag in parts:
+        for r in _facts_for_tag(facts, "us-gaap", tag, _USD):
+            if _valid(r):
+                part.setdefault((r.get("accn"), r.get("start", ""), r["end"]), r)
+    out = []
+    for r in _facts_for_tag(facts, "us-gaap", base, _USD):
+        p = part.get((r.get("accn"), r.get("start", ""), r["end"])) if _valid(r) else None
+        if p is not None:
+            out.append(dict(r, val=r["val"] + p["val"]))
+    return out
+
+
 def _continue_with_fallbacks(facts: dict, concept: str, chain: list[dict]) -> tuple[list[dict], list[str]]:
-    """Append the proven fallback tags' facts that end after the series' last
-    period_end (_FALLBACK_TAGS comment block). Returns (records, tags_admitted)."""
+    """Append the proven fallback tags' (then sums') facts that end after the series'
+    last period_end; a proven sum also fills an annual-only stretch (_FALLBACK_TAGS,
+    _FALLBACK_SUMS). Returns (records, tags_admitted)."""
     tags = list(_FALLBACK_TAGS.get(concept, []))
     if not chain:
         tags += [t for t in _IDENTITY_TAGS.get(concept, []) if t not in tags]
+    sums = {f"{b}+{'|'.join(p)}": (b, p) for b, p in _FALLBACK_SUMS.get(concept, [])} if chain else {}
     out, admitted = list(chain), []
-    for tag in tags:
-        cand = [r for r in _facts_for_tag(facts, "us-gaap", tag, _USD) if _valid(r)]
+    for tag in tags + list(sums):
+        if tag in sums:
+            cand = _sum_records(facts, *sums[tag])
+        else:
+            cand = [r for r in _facts_for_tag(facts, "us-gaap", tag, _USD) if _valid(r)]
         if not cand:
             continue
         if chain:
@@ -637,7 +686,16 @@ def _continue_with_fallbacks(facts: dict, concept: str, chain: list[dict]) -> tu
             continue
         last = max((r["end"] for r in out), default="")
         seen = {_fact_key(r) for r in out}
-        new = [r for r in cand if r["end"] > last and _fact_key(r) not in seen]
+        # a proven SUM also fills the periods the series lacks once it went annual-only
+        # (SPGI, ROP, FAST, SNA: the full line is tagged only for the fiscal year, the
+        # sum brings the quarters and the 9M level Q4 needs): after the series' last
+        # sub-annual period, never a period the series has (Ц., ПНЛ4б 13.10.2026)
+        if tag in sums:
+            periods = {(r.get("start", ""), r["end"]) for r in out}
+            sub_annual = max((r["end"] for r in out if not _is_annual(r)), default="")
+        new = [r for r in cand if _fact_key(r) not in seen
+               and (r["end"] > last or (tag in sums and r["end"] > sub_annual
+                                        and (r.get("start", ""), r["end"]) not in periods))]
         if new:
             out.extend(new)
             admitted.append(tag)
@@ -738,6 +796,9 @@ def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict,
     rows: list[list] = []
 
     for concept, (namespace, tags, unit) in _CONCEPTS.items():
+        if concept == "depreciation_amortization" and ticker in _DA_NA:
+            stats.setdefault("da_na", []).append(ticker)
+            continue
         if concept == "shares_outstanding":
             # dei ∪ us-gaap common-shares tags, sub-million sentinels dropped at
             # source (see _extract_shares). NOT the generic _union_chain — this one
@@ -897,6 +958,8 @@ def build(limit: int | None = None) -> dict:
                     stats["profitloss_refused"])
     for key, names in sorted(stats.get("fallbacks", {}).items()):
         logger.info("proven fallback %s continues %d names: %s", key, len(names), names)
+    if stats.get("da_na"):
+        logger.info("depreciation_amortization: not applicable (_DA_NA) %s", stats["da_na"])
     if class_table:
         logger.info("shares_outstanding per class: %d records for %d tickers; %d unguarded; "
                     "weighted fallback %d %s; guard breaches kept %d %s",

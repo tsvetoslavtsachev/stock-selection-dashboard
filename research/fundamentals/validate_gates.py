@@ -32,6 +32,9 @@ G6 — staleness ratchet (12.10.2026)
     * G6d (ПНЛ2, 13.10.2026): a name declared debt-free (build_panel._DEBT_FREE) must
       carry total_debt 0 at its latest balance sheet, and a not-applicable name
       (debt.DEBT_NA: banks, broker-dealers, insurers) must carry no total_debt at all.
+    * G6a (ПНЛ4б, 13.10.2026): depreciation_amortization is the full line; no row may
+      be a bare `Depreciation` fact (PP&E only), and a build_panel._DA_NA name carries
+      none. Reads the EDGAR cache; skipped where it is absent (CI).
 
 CLI
     python -m research.fundamentals.validate_gates
@@ -273,11 +276,49 @@ def g6d_debt_declarations(panel: pd.DataFrame, debt_free: dict) -> list[str]:
     return fails
 
 
+def g6a_da_full_line(panel: pd.DataFrame, cache_dir: Path | None = None) -> list[str]:
+    """Failures of the D&A definition (ПНЛ4б): a depreciation_amortization row that is a
+    bare `Depreciation` fact (same key and value) found in no admissible source (the
+    chain, _FALLBACK_TAGS, _FALLBACK_SUMS), or any row for a _DA_NA name. Needs the
+    EDGAR cache, which is git-ignored: without it the check is skipped (CI)."""
+    import json
+    from research.fundamentals import build_panel as bp
+    cache_dir = cache_dir or bp._CACHE_DIR
+    da = panel[panel["concept"] == "depreciation_amortization"]
+    fails = [f"DA_NA {t}: has depreciation_amortization rows" for t in sorted(set(da["ticker"]) & set(bp._DA_NA))]
+    if not any(cache_dir.glob("CIK*.json")):
+        logger.info("G6a skipped: no EDGAR cache at %s", cache_dir)
+        return fails
+    concept = "depreciation_amortization"
+    sources = bp._CONCEPTS[concept][1] + bp._FALLBACK_TAGS.get(concept, [])
+    iso = lambda d: "" if pd.isna(d) else pd.Timestamp(d).date().isoformat()
+    for cik, g in da.groupby("cik"):
+        path = cache_dir / f"CIK{int(cik):010d}.json"
+        if not path.exists():
+            continue
+        facts = json.loads(path.read_text(encoding="utf-8")).get("facts", {})
+        key = lambda r: (r.get("start", ""), r["end"], r["filed"])
+        dep = {key(r): r["val"] for r in bp._facts_for_tag(facts, "us-gaap", "Depreciation", "USD") if bp._valid(r)}
+        ok = {key(r) + (r["val"],) for t in sources
+              for r in bp._facts_for_tag(facts, "us-gaap", t, "USD") if bp._valid(r)}
+        ok |= {key(r) + (r["val"],) for b, parts in bp._FALLBACK_SUMS.get(concept, [])
+               for r in bp._sum_records(facts, b, parts)}
+        for t, gt in g.groupby("ticker"):
+            bad = [k for k in ((iso(r.period_start), iso(r.period_end), iso(r.filed), r.value)
+                               for r in gt.itertuples())
+                   if dep.get(k[:3]) == k[3] and k not in ok]
+            if bad:
+                fails.append(f"DA_NARROW {t}: {len(bad)} rows are bare Depreciation (e.g. {bad[-1][1]})")
+    return fails
+
+
 def g6_all(panel: pd.DataFrame) -> dict:
-    """G6 staleness ratchet plus the G6d debt declarations, in one verdict."""
+    """G6 staleness ratchet plus the G6d debt declarations and the G6a D&A definition,
+    in one verdict."""
     from research.fundamentals.build_panel import _DEBT_FREE
     g6 = g6_staleness(panel, load_staleness_baseline())
     g6["failures"] += g6d_debt_declarations(panel, _DEBT_FREE)
+    g6["failures"] += g6a_da_full_line(panel)
     return g6
 
 
