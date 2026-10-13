@@ -271,6 +271,13 @@ FILING_SPECS: dict[str, dict] = {
             "why": "нетекущият ред е собствен таг bax:LongTermDebtAndLeaseObligationExcludingCurrentMaturities: 0 + 0,844 + 8,615 = 9,46 млрд (2026-06-30)"},
     "O": {"mode": "sum", "axis": "",
           "why": "собствен ред o:RevolvingCreditFacilityAndCommercialPaper 2,763 + 2,760 + 0,037 + 25,092 = 30,65 млрд (2026-06-30)"},
+    # Ц., 13.10.2026: DE consolidated, as a NOTED exception to "industrial part only" —
+    # its 10-Q tags no debt line on an Equipment Operations member, so the industrial
+    # part cannot be read from the filing; most of the figure is John Deere Financial.
+    "DE": {"mode": "sum", "axis": "",
+           "why": "КОНСОЛИДИРАНО по решение на Ц. (изключение): рамото John Deere Financial не е отделено в XBRL; "
+                  "DebtCurrent 17,115 + SecuredDebt 6,095 + de:LongTermDebtAndFinanceLeasesNoncurrent 40,626 = "
+                  "63,84 млрд (2026-08-02), предимно на рамото"},
     "TMUS": {"mode": "sum", "axis": "RelatedPartyTransactionsByRelatedPartyAxis",
              "why": "LongTermDebtNoncurrent е само по свързани / несвързани лица (78,504 + 0) в 10-Q (2026-06-30)"},
 }
@@ -352,8 +359,4 @@ DEBT_NA: dict[str, str] = {
     "KKR": "неприложимо: консолидира застрахователя Global Atlantic и CLO фондове; LongTermDebt е само "
            "по сегменти (Asset Management 49,7 / Insurance 3,8 млрд, 2026-06-30)",
     "APO": "неприложимо: консолидира застрахователя Athene",
-    # not computable under the chosen definition — no total_debt rather than a wrong one
-    "DE": "друго: финансовото рамо (John Deere Financial) не е отделено в XBRL на 10-Q (нито един ред за "
-          "дълг с член за Equipment Operations, 0001104659-26-102213 / 2026-08-02); консолидираният дълг "
-          "17,115 + 6,095 + 40,626 = 63,84 млрд е предимно на рамото, а решението е само индустриалната част",
 }
