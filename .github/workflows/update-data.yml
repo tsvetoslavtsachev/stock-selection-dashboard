@@ -59,11 +59,11 @@ jobs:
       # collect_edgar -> collect_edgar_classes -> collect_debt_face -> collect_debt_filing
       # -> build_panel -> validate_gates, which re-writes research/data/g6_stamp.json).
       # --no-stamp: CI checks, it never rewrites the stamp.
-      - name: Fundamentals tests (SEC panel)
-        run: python -m pytest research/fundamentals/tests -q
-
       - name: G6 staleness + G6d debt gate (SEC panel)
         run: python -m research.fundamentals.validate_gates --panel research/data/edgar_pit_panel.csv.gz --no-stamp
+
+      - name: Fundamentals tests (SEC panel)
+        run: python -m pytest research/fundamentals/tests -q
 
       - name: Prepare settings
         run: cp config/settings.example.yml config/settings.yml
