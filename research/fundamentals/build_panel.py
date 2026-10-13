@@ -270,6 +270,7 @@ _FALLBACK_SUMS: dict[str, list[tuple[str, tuple[str, ...]]]] = {
 # Names whose D&A tags are not operating D&A: no rows, the gap is explained in G6.
 _DA_NA: dict[str, str] = {
     "WRB": "застраховател: DepreciationAndAmortization и DepreciationAmortizationAndAccretionNet са нетното натрупване по инвестициите (2025 FY -48,1 млн), не оперативна амортизация (ПНЛ4б, Р2)",
+    "PRU": "застраховател: DepreciationDepletionAndAmortization носи нетната амортизация на премиите и дисконтите по инвестициите (FY2024 383 млн, FY2025 128, 2026 Q1 143, H1 33, т.е. Q2 -110), не оперативна амортизация (ПНЛ4б, Ц. 13.10.2026)",
 }
 _IDENTITY_TAGS: dict[str, list[str]] = {
     "net_income": ["NetIncomeLossAvailableToCommonStockholdersBasic", _NI_CONSOLIDATED_TAG],
