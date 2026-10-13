@@ -229,6 +229,30 @@ def test_fallback_needs_two_shared_periods():
     assert admitted == []
 
 
+# ПНЛ4в (Р1): the filer's own line under another us-gaap tag, read in its latest filing.
+_PNL4V_TAGS = [("capex", "PaymentsToAcquirePropertyPlantAndEquipment", "PaymentsToAcquireOtherProductiveAssets"),
+               ("capex", "PaymentsToAcquireProductiveAssets", "PaymentsForProceedsFromProductiveAssets"),
+               ("capex", "PaymentsToAcquireProductiveAssets", "PaymentsToAcquireFurnitureAndFixtures"),
+               ("depreciation_amortization", "DepreciationDepletionAndAmortization", "OtherDepreciationAndAmortization")]
+
+
+def test_pnl4v_tags_continue_only_when_proven():
+    # HOOD, ROP, MTB, KKR capex; AMD, MRVL, WDAY D&A: the same number on every shared
+    # period continues the chain, a 1% difference on one of them keeps the gap.
+    for concept, chain_tag, tag in _PNL4V_TAGS:
+        same = [_q("2024-03-31", "2024-01-01", 100.0, "2025-04-30"),
+                _q("2024-06-30", "2024-04-01", 110.0, "2025-07-30"),
+                _q("2025-06-30", "2025-04-01", 120.0, "2025-07-30")]
+        recs, admitted = build_panel._continue_with_fallbacks(
+            _facts(**{chain_tag: _CHAIN, tag: same}), concept, list(_CHAIN))
+        assert admitted == [tag] and recs[-1]["end"] == "2025-06-30", (concept, tag)
+        off = [dict(r) for r in same]
+        off[1]["val"] = 111.1
+        recs, admitted = build_panel._continue_with_fallbacks(
+            _facts(**{chain_tag: _CHAIN, tag: off}), concept, list(_CHAIN))
+        assert admitted == [] and len(recs) == 2, (concept, tag)
+
+
 def _with_per_share(facts, per_share_tag, per_share, shares):
     g = facts.setdefault("us-gaap", {})
     g[per_share_tag] = {"units": {"USD/shares": per_share}}

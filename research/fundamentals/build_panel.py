@@ -238,7 +238,11 @@ _DEBT_FREE: dict[str, str] = {
 # period_end): a name whose chain is fresh gets nothing from it, no existing row changes.
 _FALLBACK_TAGS: dict[str, list[str]] = {
     "buybacks": ["PaymentsForRepurchaseOfEquity"],
-    "capex": ["PaymentsForCapitalImprovements", "PaymentsToAcquireOtherPropertyPlantAndEquipment"],
+    # ПНЛ4в (13.10.2026, Р1 на Ц.): the filer's own capex line under another us-gaap tag,
+    # read in its latest filing (HOOD, ROP; MTB; KKR), admitted only where proven
+    "capex": ["PaymentsForCapitalImprovements", "PaymentsToAcquireOtherPropertyPlantAndEquipment",
+              "PaymentsToAcquireOtherProductiveAssets", "PaymentsForProceedsFromProductiveAssets",
+              "PaymentsToAcquireFurnitureAndFixtures"],
     "cash_and_equivalents": [
         "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsIncludingDisposalGroupAndDiscontinuedOperations",
         "Cash",
@@ -246,6 +250,9 @@ _FALLBACK_TAGS: dict[str, list[str]] = {
     "depreciation_amortization": [
         "DepreciationAmortizationAndAccretionNet",
         "CostOfGoodsAndServicesSoldDepreciationAndAmortization",
+        # ПНЛ4в (Р1): the cash-flow „Depreciation and amortization“ line moved to this
+        # tag (AMD, MRVL, WDAY; equal to the old DDA on every shared period)
+        "OtherDepreciationAndAmortization",
     ],
     "dividends_paid": ["PaymentsOfOrdinaryDividends"],
     # after preferred dividends: the basic-EPS numerator (equal to NetIncomeLoss for
