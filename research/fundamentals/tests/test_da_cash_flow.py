@@ -81,7 +81,8 @@ def test_table_is_well_formed():
     named = build_panel._DA_CF_DDA | build_panel._DA_CF_DANDA | set(build_panel._DA_CF_SWITCH)
     assert not named & {"PNC", "COF", "DVA", "KEY", "MCK", "WTW"}   # Р2; own cash-flow tags
     assert not named & set(build_panel._DA_NA)
-    assert len(build_panel._DA_CF_DDA) == 43 and len(build_panel._DA_CF_DANDA) == 18
+    assert len(build_panel._DA_CF_DDA) == 43 and len(build_panel._DA_CF_DANDA) == 20
+    assert {"PSX", "IT"} <= build_panel._DA_CF_DANDA   # ПНЛ4е
 
 
 def test_g6a_da_note_fails_the_old_rule(tmp_path):

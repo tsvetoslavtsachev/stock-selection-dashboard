@@ -289,6 +289,10 @@ _DA_NA: dict[str, str] = {
 # each filing's presentation linkbase (1 623 filings, 0 with both tags in the cash flow).
 # Not here: PNC, COF (the cash-flow line is net of accretion, Р2), DVA, KEY, MCK, WTW (own
 # cash-flow tag). BEN moved the line from DandA to DDA with the 10-K filed 11.2020.
+# ПНЛ4е (Р1 на Ц., 14.10.2026): of 35 more names with both tags in a filing but no collision
+# on a shared key, only PSX and IT (DandA) enter: PSX's 10-K note gave Q4 2021 as 155 mln vs
+# 524 in the cash flow (2022 TTM 1 236 vs 1 605). The other 32 wait for ПНЛ7: today their
+# TTM is the same, but their note quarters still mask pit's fy bug in the history.
 _DA_CF_DDA = frozenset({
     "ALGN", "AMGN", "ARE", "ATO", "BA", "BAX", "BXP", "CPT", "CTSH", "D", "DUK", "DXCM", "ECHO",
     "EFX", "EIX", "EXE", "FICO", "GPC", "HD", "HSIC", "HWM", "KIM", "LOW", "MAA", "MSCI", "NCLH",
@@ -296,8 +300,8 @@ _DA_CF_DDA = frozenset({
     "WBD", "WELL", "WMB", "YUM",
 })
 _DA_CF_DANDA = frozenset({
-    "ADSK", "AES", "AMZN", "CRM", "DDOG", "EBAY", "FDXF", "FIS", "GWW", "IEX", "L", "LHX", "MCD",
-    "MCO", "NDAQ", "NTAP", "TSLA", "UPS",
+    "ADSK", "AES", "AMZN", "CRM", "DDOG", "EBAY", "FDXF", "FIS", "GWW", "IEX", "IT", "L", "LHX",
+    "MCD", "MCO", "NDAQ", "NTAP", "PSX", "TSLA", "UPS",
 })
 _DA_CF_SWITCH: dict[str, tuple[str, str, str]] = {
     "BEN": ("2020-06-01", "DepreciationAndAmortization", "DepreciationDepletionAndAmortization"),
