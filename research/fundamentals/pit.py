@@ -35,12 +35,16 @@ To get clean quarters we:
      discrete quarter: Q2 = H1 - Q1, Q3 = 9M - H1, Q4 = FY - 9M. When a discrete
      ~90-day fact is directly present we prefer it over the differenced value
      (fewer rounding artifacts), but the FY-minus-9M path is the only way to get Q4.
-  3. TTM = sum of the four most recent distinct quarters (by fiscal period_end),
-     requiring all four to be present (else NaN — an honest gap, not a partial-year
-     figure masquerading as annual).
+  3. TTM = the latest twelve months that contiguous pieces tile with no hole (a
+     piece is a quarter, or a multi-quarter block such as H1 when Q1 was never
+     tagged), ending at the concept's latest quarter or one quarter before it; else
+     NaN (an honest gap, not a partial-year or years-old figure masquerading as
+     the trailing twelve months). See ``ttm_window``.
 
-Fiscal-year grouping uses each fact's ``fy`` field (present on every EDGAR fact),
-which is robust to off-calendar fiscal years (AAPL's September year-end etc.).
+The fiscal year of a fact is its PERIOD START (Q1, H1, 9M and FY of one year share
+it), never the filing's ``fy`` stamp: SEC stamps comparative periods with the new
+filing's fy, so grouping by fy paired FY25 with 9M FY26 (WDAY) and skipped quarters
+(ПНЛ7, 14.10.2026).
 """
 
 from __future__ import annotations
@@ -82,6 +86,23 @@ ALL_CONCEPTS = STOCK_CONCEPTS | FLOW_CONCEPTS
 _Q_DAYS = 91
 _TOL = 25          # +/- window around each horizon
 _HORIZONS = {1: 91, 2: 182, 3: 273, 4: 365}   # n-quarters-cumulative -> nominal days
+
+# Periodic reports only (an 8-K earnings release is not the statement); a 12-month
+# fact only from an annual form (prefix match: 10-K, 10-K/A, 10-KT, 20-F, 20-F/A).
+_PERIODIC_FORMS = frozenset({"10-Q", "10-Q/A", "10-QT", "10-K", "10-K/A", "10-KT", "20-F", "20-F/A"})
+_ANNUAL_PREFIXES = ("10-K", "20-F")
+_DAY = pd.Timedelta(days=1)
+_JOIN_TOL = 7          # days: two pieces join if one starts within a week of the other's end
+# A TTM whose window ends more than this many days before the ticker's latest
+# revenues period_end is NaN (100 = the G6 threshold). None = off: Ц. 14.10.2026
+# (ПНЛ7, СТОП А) - off until the screen shows an unknown dividend as unknown, not
+# 0% (reverse.dividend_flat), and the P/E history rule is decided.
+_STALE_TTM_DAYS = None
+# When the latest quarter of the concept itself cannot be tiled, the window may end
+# at most this many days earlier (one quarter back); further back is NaN, not a
+# years-old sum (EIX net income: no FY2021/FY2022 -> the 12 months to 2021-09-30
+# would stand in for 2022-2026). None = fall back without limit.
+_FALLBACK_DAYS = 100
 
 
 # ---------------------------------------------------------------------------
@@ -149,109 +170,155 @@ def _best_by(records: list[dict], key) -> dict:
     return out
 
 
-def _quarters_for_flow(g: pd.DataFrame) -> pd.DataFrame:
-    """Reduce all known flow facts for one (ticker, concept) to a table of DISCRETE
-    quarters: columns [fy, q_index, period_end, value].
+def _flow_records(g: pd.DataFrame) -> list[dict]:
+    """The usable flow facts of one (ticker, concept), each tagged with ``ndur``.
 
-    Two filing shapes coexist and are reconciled:
-
-    * A DISCRETE quarter (~90d) is a standalone ~13-week window; its ``period_end``
-      is the quarter's own close. These are used directly, keyed by period_end.
-
-    * CUMULATIVE facts (~180/270/365d) share the fiscal-year START and differ only
-      in ``period_end`` (H1, 9M, FY). A quarter is recovered by differencing a
-      cumulative level against the previous cumulative level in the SAME fiscal year
-      (Q2 = H1 - Q1cum..., Q4 = FY - 9M). Cumulative differencing is the ONLY route
-      to Q4 (the 10-K reports FY, never a discrete Q4).
-
-    Where BOTH exist for the same quarter-end, the directly-tagged discrete value is
-    preferred (it is the filer's own quarter figure, no rounding from differencing).
-    """
+    * Only periodic reports (10-Q / 10-K / 20-F and their /A, T variants): an 8-K
+      earnings release is not the filed statement.
+    * A ~12-month fact only from an ANNUAL form. 10-Qs carry stray 12-month facts
+      (FIX 10-Q of 2026-04-23: "2025-01-01..2025-12-31 = 1.83bn", the Q1 figure
+      under a full-year context); latest-filed-wins would let it beat the 10-K.
+    * No ``fy`` filter: the fiscal year is read from the period itself (see
+      ``_segments``), never from the filing's ``fy`` stamp."""
     if g.empty:
-        return pd.DataFrame(columns=["fy", "q_index", "period_end", "value"])
-
+        return []
+    g = g[g["period_start"].notna() & g["period_end"].notna() & g["value"].notna()]
+    if "form" in g.columns:
+        g = g[g["form"].isin(_PERIODIC_FORMS)]
+    if g.empty:
+        return []
     g = g.copy()
-    g["ndur"] = [
-        _n_quarters(ps, pe) for ps, pe in zip(g["period_start"], g["period_end"])
-    ]
-    g = g[g["ndur"].notna() & g["value"].notna() & g["fy"].notna()]
-    if g.empty:
-        return pd.DataFrame(columns=["fy", "q_index", "period_end", "value"])
+    g["ndur"] = [_n_quarters(ps, pe) for ps, pe in zip(g["period_start"], g["period_end"])]
+    g = g[g["ndur"].notna()]
     g["ndur"] = g["ndur"].astype(int)
+    if "form" in g.columns:
+        annual = g["form"].str.startswith(_ANNUAL_PREFIXES, na=False)
+        g = g[(g["ndur"] < 4) | annual]
+    return g.to_dict("records")
 
-    recs = g.to_dict("records")
 
-    # --- discrete quarters (~90d): keyed by period_end, deduped to latest-known ---
-    discrete = _best_by(
-        [r for r in recs if r["ndur"] == 1],
-        key=lambda r: r["period_end"],
-    )
+def _segments(recs: list[dict]) -> list[dict]:
+    """Contiguous pieces of the flow, each covering 1..4 fiscal quarters:
+    {begin, end, nq, value, kind, filed, fy, q_index}.
 
-    # --- cumulative levels (~180/270/365d) grouped per fiscal year, deduped ---
-    # Key by (fy, ndur) so a re-filed H1 collapses to its latest-known value. Within
-    # a fiscal year we then have an ordered ladder of cumulative period_ends.
-    cum = _best_by(
-        [r for r in recs if r["ndur"] >= 2],
-        key=lambda r: (r["fy"], r["ndur"]),
-    )
-    # Also treat a discrete Q1 as the 1-quarter cumulative level (they coincide: the
-    # first quarter's cumulative == the first quarter itself), so the ladder can
-    # start differencing from Q1 even when only discrete-Q1 + cumulative-H1 exist.
-    for pe, d in discrete.items():
-        fy_match = [r for r in recs if r["ndur"] == 1 and r["period_end"] == pe]
-        if fy_match:
-            fy = fy_match[0]["fy"]
-            cum.setdefault((fy, 1), {"value": d["value"], "period_end": pe, "filed": d["filed"]})
+    * kind "q": a discrete ~90-day fact, taken as filed (latest filed per period).
+    * kind "d": a difference of two cumulative levels of ONE fiscal year. A fiscal
+      year is identified by its START (``period_start``): Q1, H1, 9M and FY of a year
+      share it, whatever ``fy`` each filing stamps on them (SEC stamps a comparative
+      period with the NEW filing's fy -> WDAY's 9M FY26 and FY25 both under fy 2025).
+      Adjacent known levels m < n give a piece of n - m quarters (H1 alone after the
+      year start = 2 quarters; FY - 9M = Q4). The lower level is taken as known when
+      the upper one was filed (same vintage): after a divestiture the restated 9M
+      minus the old 10-K FY is no quarter at all (BDX FY25: 21.84bn - 13.54bn)."""
+    segs: list[dict] = []
+    for (ps, pe), d in _best_by(
+        [r for r in recs if r["ndur"] == 1], key=lambda r: (r["period_start"], r["period_end"])
+    ).items():
+        segs.append({"begin": ps, "end": pe, "nq": 1, "value": d["value"],
+                     "kind": "q", "filed": d["filed"], "fy": None, "q_index": None})
 
-    quarters: dict[pd.Timestamp, dict] = {}  # period_end -> {fy, q_index, value}
-
-    # 1) discrete quarters go in directly.
-    for pe, d in discrete.items():
-        quarters[pe] = {"fy": None, "q_index": None, "value": d["value"], "period_end": pe}
-
-    # 2) cumulative differencing per fiscal year fills the rest (esp. Q4).
-    fys = sorted({k[0] for k in cum})
-    for fy in fys:
-        ladder = sorted(
-            [(n, cum[(fy, n)]) for n in range(1, 5) if (fy, n) in cum],
-            key=lambda t: t[0],
-        )
-        prev_val = 0.0
-        prev_n = 0
-        for n, lvl in ladder:
-            pe = lvl["period_end"]
-            if n - prev_n == 1:
-                q_val = lvl["value"] - prev_val
+    cum = _best_by(recs, key=lambda r: (r["period_start"], r["ndur"]))
+    hist: dict = {}
+    for r in recs:
+        hist.setdefault((r["period_start"], r["ndur"]), []).append(r)
+    for ps in sorted({k[0] for k in cum}):
+        levels = [n for n in range(1, 5) if (ps, n) in cum]
+        if levels == [1]:
+            continue  # a lone ~90d level is just the discrete quarter, already above
+        if (ps, 4) in cum:
+            label = cum[(ps, 4)]["period_end"].year
+        else:
+            label = (ps + pd.Timedelta(days=364)).year
+        prev_n, prev_end = 0, ps - _DAY
+        for n in levels:
+            top = cum[(ps, n)]
+            if prev_n == 0:
+                base = 0.0
             else:
-                # Non-contiguous ladder (missing an intermediate horizon): cannot
-                # difference this step cleanly. Skip deriving THIS quarter, but keep
-                # the level as the new baseline for later contiguous steps.
-                prev_val = lvl["value"]
-                prev_n = n
-                continue
-            # Prefer a directly-tagged discrete quarter landing on this end.
-            if pe not in quarters:
-                quarters[pe] = {"fy": fy, "q_index": n, "value": q_val, "period_end": pe}
-            else:
-                # already have discrete; just annotate fy/q_index if missing.
-                if quarters[pe]["fy"] is None:
-                    quarters[pe]["fy"] = fy
-                    quarters[pe]["q_index"] = n
-            prev_val = lvl["value"]
-            prev_n = n
+                older = [r for r in hist[(ps, prev_n)] if r["filed"] <= top["filed"]]
+                base = (_best_by(older, key=lambda r: 0)[0] if older else cum[(ps, prev_n)])["value"]
+            segs.append({"begin": prev_end + _DAY, "end": top["period_end"], "nq": n - prev_n,
+                         "value": top["value"] - base, "kind": "d", "filed": top["filed"],
+                         "fy": label, "q_index": n})
+            prev_n, prev_end = n, top["period_end"]
+    return segs
 
-    out = pd.DataFrame(list(quarters.values()))
-    if out.empty:
+
+def _chain(segs: list[dict], end, need: int) -> list[dict] | None:
+    """Pieces that tile exactly ``need`` quarters back from ``end`` with no hole (each
+    piece starts the day after the previous one ends, +/- _JOIN_TOL days). Finest
+    pieces first, a filed discrete quarter before a derived one."""
+    if need == 0:
+        return []
+    cands = [s for s in segs if s["nq"] <= need and abs((s["end"] - end).days) <= _JOIN_TOL]
+    cands.sort(key=lambda s: (s["nq"], s["kind"] != "q", -pd.Timestamp(s["filed"]).value))
+    for s in cands:
+        rest = _chain(segs, s["begin"] - _DAY, need - s["nq"])
+        if rest is not None:
+            return rest + [s]
+    return None
+
+
+def _quarters_for_flow(g: pd.DataFrame) -> pd.DataFrame:
+    """All known flow facts for one (ticker, concept) -> a table of DISCRETE quarters:
+    columns [fy, q_index, period_end, value].
+
+    A quarter is either filed directly (~90d) or the difference of two adjacent
+    cumulative levels of the same fiscal year (Q2 = H1 - Q1, Q3 = 9M - H1,
+    Q4 = FY - 9M; see ``_segments``). Where both exist for the same quarter-end the
+    filed one wins. ``fy`` is the calendar year of the fiscal year's end."""
+    segs = [s for s in _segments(_flow_records(g)) if s["nq"] == 1]
+    if not segs:
         return pd.DataFrame(columns=["fy", "q_index", "period_end", "value"])
+    labels = {s["end"]: (s["fy"], s["q_index"]) for s in segs if s["kind"] == "d"}
+    starts = sorted({s["begin"] for s in segs if s["kind"] == "d" and s["q_index"] == 1})
+    quarters: dict = {}
+    for s in sorted(segs, key=lambda s: (s["kind"] == "q", s["filed"])):
+        pe = s["end"]
+        fy, qi = labels.get(pe, (None, None))
+        if fy is None:
+            own = [st for st in starts if st <= s["begin"] and (pe - st).days <= 380]
+            st = own[0] if own else s["begin"]   # no ladder yet: a lone Q1 of a new year
+            qi = min(4, max(1, round((pe - st).days / 91.3)))
+            fy = (st + pd.Timedelta(days=364)).year
+        quarters[pe] = {"fy": fy, "q_index": qi, "period_end": pe, "value": s["value"]}
+    out = pd.DataFrame(list(quarters.values()))
     return out.sort_values("period_end").reset_index(drop=True)[["fy", "q_index", "period_end", "value"]]
+
+
+def ttm_window(g: pd.DataFrame, stale_ref=None) -> dict:
+    """TTM of one (ticker, concept) from the facts in ``g`` (already filtered to
+    filed <= D): the latest twelve months that the facts tile WITHOUT a hole.
+
+    Returns {"value", "start", "end", "q_ends", "stale"}; value NaN when no four contiguous
+    quarters exist, or when ``stale_ref`` (the ticker's latest revenues period_end)
+    is given and the window ends more than _STALE_TTM_DAYS before it: a sum of
+    quarters from years ago is not a trailing twelve months (INTC D&A from 2019)."""
+    empty = {"value": np.nan, "start": None, "end": None, "q_ends": [], "stale": False}
+    segs = _segments(_flow_records(g))
+    if not segs:
+        return empty
+    last = max(s["end"] for s in segs)
+    for end in sorted({s["end"] for s in segs}, reverse=True):
+        if _FALLBACK_DAYS is not None and (last - end).days > _FALLBACK_DAYS:
+            break
+        ch = _chain(segs, end, 4)
+        if ch is None:
+            continue
+        if (stale_ref is not None and _STALE_TTM_DAYS is not None and not pd.isna(stale_ref)
+                and (pd.Timestamp(stale_ref) - end).days > _STALE_TTM_DAYS):
+            return {**empty, "end": end, "stale": True}
+        return {"value": float(sum(s["value"] for s in ch)), "start": ch[0]["begin"],
+                "end": end, "q_ends": [s["end"] for s in ch], "stale": False}
+    return empty
 
 
 def _ttm_from_quarters(qdf: pd.DataFrame) -> float:
     """Sum the last four DISTINCT quarters (by period_end). Requires exactly four
-    distinct quarter end-dates; fewer -> NaN (no partial-year TTM)."""
+    distinct quarter end-dates; fewer -> NaN (no partial-year TTM). Kept for callers
+    that hold a quarter table; ``as_known_at`` uses ``ttm_window``."""
     if qdf.empty:
         return np.nan
-    # Distinct quarters keyed by period_end; if duplicates, take the last.
     q = qdf.drop_duplicates(subset=["period_end"], keep="last")
     q = q.sort_values("period_end")
     if len(q) < 4:
@@ -285,12 +352,13 @@ def as_known_at(panel: pd.DataFrame, as_of) -> pd.DataFrame:
         for ticker, g in sub.groupby("ticker"):
             result[ticker][concept] = _latest_stock_value(g)
 
-    # FLOW concepts -> TTM.
+    # FLOW concepts -> TTM (a window stale against revenues is NaN).
+    rev_end = known[known["concept"] == "revenues"].groupby("ticker")["period_end"].max()
     for concept in FLOW_CONCEPTS:
         sub = known[known["concept"] == concept]
         for ticker, g in sub.groupby("ticker"):
-            qdf = _quarters_for_flow(g)
-            result[ticker][f"{concept}_ttm"] = _ttm_from_quarters(qdf)
+            w = ttm_window(g, stale_ref=rev_end.get(ticker))
+            result[ticker][f"{concept}_ttm"] = w["value"]
 
     wide = pd.DataFrame.from_dict(result, orient="index")
     wide.index.name = "ticker"
