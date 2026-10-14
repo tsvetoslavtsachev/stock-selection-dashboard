@@ -279,7 +279,8 @@ def g6d_debt_declarations(panel: pd.DataFrame, debt_free: dict) -> list[str]:
 def g6a_da_full_line(panel: pd.DataFrame, cache_dir: Path | None = None) -> list[str]:
     """Failures of the D&A definition (ПНЛ4б): a depreciation_amortization row that is a
     bare `Depreciation` fact (same key and value) found in no admissible source (the
-    chain, _FALLBACK_TAGS, _FALLBACK_SUMS), or any row for a _DA_NA name. Needs the
+    chain, _FALLBACK_TAGS, _FALLBACK_SUMS), any row for a _DA_NA name, or (ПНЛ4д) a note
+    tag's fact dropped for the cash-flow one (_DA_CF_*). Needs the
     EDGAR cache, which is git-ignored: without it the check is skipped (CI)."""
     import json
     from research.fundamentals import build_panel as bp
@@ -309,6 +310,19 @@ def g6a_da_full_line(panel: pd.DataFrame, cache_dir: Path | None = None) -> list
                    if dep.get(k[:3]) == k[3] and k not in ok]
             if bad:
                 fails.append(f"DA_NARROW {t}: {len(bad)} rows are bare Depreciation (e.g. {bad[-1][1]})")
+            if bp._da_cash_flow_tag(t, "") is None:
+                continue
+            # ПНЛ4д: a name in _DA_CF_* takes, in a filing with both tags, only the
+            # cash-flow statement's one; a row that is the note tag's dropped fact fails
+            cf, _n = bp._da_cash_flow_facts(t, facts)
+            kept = {key(r) + (r["val"],) for s in sources
+                    for r in bp._facts_for_tag(cf, "us-gaap", s, "USD") if bp._valid(r)}
+            note = {key(r) + (r["val"],) for s in bp._CONCEPTS[concept][1]
+                    for r in bp._facts_for_tag(facts, "us-gaap", s, "USD") if bp._valid(r)} - kept
+            bad = [k for k in ((iso(r.period_start), iso(r.period_end), iso(r.filed), r.value)
+                               for r in gt.itertuples()) if k in note]
+            if bad:
+                fails.append(f"DA_NOTE {t}: {len(bad)} rows are the note tag beside the cash-flow one (e.g. {bad[-1][1]})")
     return fails
 
 

@@ -280,6 +280,28 @@ _DA_NA: dict[str, str] = {
     "WRB": "застраховател: DepreciationAndAmortization и DepreciationAmortizationAndAccretionNet са нетното натрупване по инвестициите (2025 FY -48,1 млн), не оперативна амортизация (ПНЛ4б, Р2)",
     "PRU": "застраховател: DepreciationDepletionAndAmortization носи нетната амортизация на премиите и дисконтите по инвестициите (FY2024 383 млн, FY2025 128, 2026 Q1 143, H1 33, т.е. Q2 -110), не оперативна амортизация (ПНЛ4б, Ц. 13.10.2026)",
 }
+# The D&A tag of the CASH-FLOW STATEMENT, BY NAME (ПНЛ4д, Р1 V5 на Ц., 14.10.2026). These
+# filers tag DepreciationDepletionAndAmortization AND DepreciationAndAmortization in one
+# filing: one is the cash-flow line, the other a note (PP&E, segments, income statement).
+# The union kept DDA on a shared key and the note's facts on every other key, e.g. a
+# segment table's discrete quarter over the cash-flow YTD (AMGN D&A TTM 2 702 vs 4 667 mln,
+# UDR 347 vs 676). In a filing carrying both tags only the cash-flow one stays. Read from
+# each filing's presentation linkbase (1 623 filings, 0 with both tags in the cash flow).
+# Not here: PNC, COF (the cash-flow line is net of accretion, Р2), DVA, KEY, MCK, WTW (own
+# cash-flow tag). BEN moved the line from DandA to DDA with the 10-K filed 11.2020.
+_DA_CF_DDA = frozenset({
+    "ALGN", "AMGN", "ARE", "ATO", "BA", "BAX", "BXP", "CPT", "CTSH", "D", "DUK", "DXCM", "ECHO",
+    "EFX", "EIX", "EXE", "FICO", "GPC", "HD", "HSIC", "HWM", "KIM", "LOW", "MAA", "MSCI", "NCLH",
+    "PCAR", "PEP", "PLD", "PYPL", "SBUX", "SWK", "TGT", "TPR", "TTD", "UDR", "UHS", "URI", "VRSK",
+    "WBD", "WELL", "WMB", "YUM",
+})
+_DA_CF_DANDA = frozenset({
+    "ADSK", "AES", "AMZN", "CRM", "DDOG", "EBAY", "FDXF", "FIS", "GWW", "IEX", "L", "LHX", "MCD",
+    "MCO", "NDAQ", "NTAP", "TSLA", "UPS",
+})
+_DA_CF_SWITCH: dict[str, tuple[str, str, str]] = {
+    "BEN": ("2020-06-01", "DepreciationAndAmortization", "DepreciationDepletionAndAmortization"),
+}
 # Own (extension) tags, BY NAME (ПНЛ4г, 13.10.2026): own_tags.csv lists the filers whose
 # us-gaap line stopped because they moved it to their own tag; collect_own_tags reads
 # those facts from the filings' instances (companyfacts drops them). Admitted after the
@@ -375,6 +397,42 @@ def _union_chain(facts: dict, namespace: str, tags: list[str], unit: str) -> tup
         if added:
             used.append(tag)
     return used, out
+
+
+def _da_cash_flow_tag(ticker: str, filed: str) -> str | None:
+    """The cash-flow statement's D&A tag for this filer's filing, or None (not in the table)."""
+    if ticker in _DA_CF_SWITCH:
+        since, before, after = _DA_CF_SWITCH[ticker]
+        return after if filed >= since else before
+    if ticker in _DA_CF_DDA:
+        return "DepreciationDepletionAndAmortization"
+    if ticker in _DA_CF_DANDA:
+        return "DepreciationAndAmortization"
+    return None
+
+
+def _da_cash_flow_facts(ticker: str, facts: dict, unit: str = _USD) -> tuple[dict, int]:
+    """facts with the NOTE tag dropped from every filing that also carries the cash-flow
+    tag (_DA_CF_*), and from any key the cash-flow tag has. Returns (facts, n_dropped)."""
+    dda, da = "DepreciationDepletionAndAmortization", "DepreciationAndAmortization"
+    recs = {t: _facts_for_tag(facts, "us-gaap", t, unit) for t in (dda, da)}
+    both = {r.get("accn") for r in recs[dda]} & {r.get("accn") for r in recs[da]}
+    keys = {t: {(r.get("start", ""), r["end"], r["filed"]) for r in recs[t] if "end" in r and "filed" in r}
+            for t in (dda, da)}
+    gaap = dict(facts.get("us-gaap", {}))
+    dropped = 0
+    for tag, other in ((dda, da), (da, dda)):
+        if tag not in gaap:
+            continue
+        keep = [r for r in recs[tag]
+                if not ("end" in r and "filed" in r
+                        and _da_cash_flow_tag(ticker, r["filed"]) == other
+                        and (r.get("accn") in both or (r.get("start", ""), r["end"], r["filed"]) in keys[other]))]
+        dropped += len(recs[tag]) - len(keep)
+        units = dict(gaap[tag].get("units", {}))
+        units[unit] = keep
+        gaap[tag] = {**gaap[tag], "units": units}
+    return {**facts, "us-gaap": gaap}, dropped
 
 
 def _extract_shares(facts: dict) -> tuple[list[dict], int]:
@@ -868,7 +926,12 @@ def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict,
         else:
             # Union the chain (tag migration of the SAME line across accounting
             # eras); de-duplicated by (start,end,filed), earlier tag wins a tie.
-            _tags_used, recs = _union_chain(facts, namespace, tags, unit)
+            src = facts
+            if concept == "depreciation_amortization" and _da_cash_flow_tag(ticker, "") is not None:
+                src, n_cf = _da_cash_flow_facts(ticker, facts, unit)
+                if n_cf:
+                    stats.setdefault("da_cf_dropped", {})[ticker] = n_cf
+            _tags_used, recs = _union_chain(src, namespace, tags, unit)
         if concept in _FALLBACK_TAGS:
             recs, admitted = _continue_with_fallbacks(facts, concept, recs)
             for tag in admitted:
@@ -1033,6 +1096,9 @@ def build(limit: int | None = None) -> dict:
         logger.warning("own tags: no cache for %s (run collect_own_tags)", sorted(stats["own_cache_missing"]))
     if stats.get("da_na"):
         logger.info("depreciation_amortization: not applicable (_DA_NA) %s", stats["da_na"])
+    if stats.get("da_cf_dropped"):
+        logger.info("depreciation_amortization: note-tag facts dropped for the cash-flow tag (_DA_CF_*): %d at %d names",
+                    sum(stats["da_cf_dropped"].values()), len(stats["da_cf_dropped"]))
     if class_table:
         logger.info("shares_outstanding per class: %d records for %d tickers; %d unguarded; "
                     "weighted fallback %d %s; guard breaches kept %d %s",
