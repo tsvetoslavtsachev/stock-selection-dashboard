@@ -379,7 +379,7 @@
     "PPL": "base",
     "PRU": "base",
     "PSA": "base",
-    "PSKY": "base",
+    "PSKY": "fetch",
     "PSX": "base",
     "PTC": "base",
     "PWR": "base",
@@ -507,7 +507,7 @@
   "summary": {
     "expected": 503,
     "covered": 503,
-    "base": 502,
-    "fetch": 1
+    "base": 501,
+    "fetch": 2
   }
 }
