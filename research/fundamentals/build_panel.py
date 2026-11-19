@@ -57,6 +57,10 @@ logger = logging.getLogger("build_panel")
 _UNIVERSE_PATH = _REPO_ROOT / "config" / "universe.csv"
 _CACHE_DIR = _REPO_ROOT / "research" / "cache" / "edgar"
 _PANEL_PATH = _REPO_ROOT / "research" / "data" / "edgar_pit_panel.csv.gz"
+# Which rule brought a row the chains do not carry (ПНЛ11): the panel keeps its columns,
+# this side file names the rule and the tag per (ticker, concept, period, filed).
+_RULES_PATH = _REPO_ROOT / "research" / "data" / "edgar_pit_panel_rules.csv"
+RULES_COLUMNS = ["ticker", "concept", "period_start", "period_end", "filed", "rule", "tag"]
 
 # enabled=1 is the S&P 500 canon; enabled=2 is a GUEST row (a name outside the index that the
 # organ must read anyway, LYFT from УБР3 29.09.2026): SEC facts are collected and paneled for it,
@@ -329,6 +333,60 @@ _IDENTITY_YEARS = 4
 _EPS_TAG = "EarningsPerShareBasic"
 _DPS_TAGS = ("CommonStockDividendsPerShareCashPaid", "CommonStockDividendsPerShareDeclared")
 _WASO_TAG = "WeightedAverageNumberOfSharesOutstandingBasic"
+
+# ПНЛ11 (Р4 на Ц., 19.11.2026, PNL10-RESHENIA.md): the dividend and net-income gaps.
+# Р4-2: for these two concepts a proven fallback tag fills EVERY period the series lacks
+# (not only after its last period_end). Each gap is proven from both sides: the nearest
+# _GAP_SIDE_N periods the series and the tag share before it and after it, at least
+# _FALLBACK_MIN_SHARED on every side where the series has periods, all within
+# _FALLBACK_TOL; a gap with the series on one side only (the tail, the head) is proven on
+# the nearest _FALLBACK_EVIDENCE_N, as the forward continuation always was. The preferred
+# tag differs exactly in the years with preferred stock, so the proof stays local.
+_GAP_FILL_CONCEPTS = frozenset({"net_income", "dividends_paid"})
+_GAP_SIDE_N = _FALLBACK_EVIDENCE_N // 2
+_GAP_START_DAYS = 7          # a period with the same end and a start this close is present
+# The gap proof sees the series as pit reads it (pit._PERIODIC_FORMS, pit._ANNUAL_PREFIXES):
+# periodic reports only, and a 12-month fact only from an annual form. DVN's chain carries
+# "FY2025" = 319 mln from the 10-Q for Q2 2026 (the half-year, mis-dated); the 10-K says 619.
+_PIT_PERIODIC_FORMS = frozenset({"10-Q", "10-Q/A", "10-QT", "10-K", "10-K/A", "10-KT", "20-F", "20-F/A"})
+_PIT_ANNUAL_PREFIXES = ("10-K", "20-F")
+# Р4-1: PaymentsOfOrdinaryDividends is admitted WITHOUT the identity proof for a filer whose
+# chain has no fiscal-year fact (CL, GE, ZTS: no fact at all; EOG: four 2009 10-Q stubs) and
+# which tags a common dividend per share in at least _DPS_MIN_YEARS of the tag's last
+# _IDENTITY_YEARS fiscal years. COHR (preferred only, no per-share) stays out. It never
+# joins the global chain: 8 of 26 filers with both tags carry another line under it.
+_ORD_TAG = "PaymentsOfOrdinaryDividends"
+_DPS_MIN_YEARS = 2
+# Р4-4: dividends DECLARED continue a dead paid series only forward, proven on the latest
+# _IDENTITY_YEARS fiscal years the two share (at least _FALLBACK_MIN_SHARED, within
+# _IDENTITY_TOL: declared in December, paid in January, equal over the year). A filer with
+# no paid fact at all admits one by the identity proof (per share x weighted shares).
+_DECLARED_TAGS = ("DividendsCommonStockCash", "DividendsCommonStock", "DividendsCash")
+# Р4-3: dividend per share x weighted basic shares from ONE filing continues a dead paid
+# series forward when the identity proof holds on the shared fiscal years; with no paid
+# fact at all (FRT, CRH) it is the series. A declared tag that passes wins (filed number).
+_PRODUCT_TAG = "DPSxWASO"
+# Р4-5: chain facts that are ANOTHER line of the cash-flow statement, by name: the same
+# filing carries a PaymentsOfOrdinaryDividends for the same period that contradicts them
+# (the zeros, and with В2 of 19.11.2026 also the larger figure, one cause).
+_DIV_OTHER_LINE: dict[str, str] = {
+    "LDOS": "от 10-Q за Q3 2016 PaymentsOfDividends е друг ред на паричния поток (993 млн за "
+            "2016 срещу 142 млн обикновени, после 0); обикновените са под "
+            "PaymentsOfOrdinaryDividends в същото подаване (198 млн за 2017 и за 2018)",
+}
+# Р4-6 (ПНЛ11, 19.11.2026): GrossProfit is a dead tag at these filers; the filer's own
+# revenue (the "revenues" chain) minus its live cost-of-revenue tag from the SAME filing
+# and period continues the series FORWARD only, after the overlap proof against its own
+# GrossProfit (_overlap_proven: last 8 shared, at least 2, 0.5%). By name, from the
+# measurement of the 67 stale gross profits (pnl11\r46_measure.csv): 23 of 67 pass.
+_COGS = "CostOfGoodsAndServicesSold"
+_COR = "CostOfRevenue"
+_GP_FROM_COST: dict[str, str] = {
+    **dict.fromkeys(["ADP", "AMZN", "BIIB", "BMY", "BR", "DLTR", "DOW", "EMR", "MDT", "NDSN",
+                     "NUE", "SWK", "TDY", "TJX"], _COGS),
+    **dict.fromkeys(["DGX", "EQIX", "FICO", "KLAC", "LYB", "NFLX", "OKE", "VLO"], _COR),
+    "CASY": "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
+}
 
 
 def load_universe(path: Path = _UNIVERSE_PATH) -> list[tuple[str, str]]:
@@ -703,6 +761,16 @@ def _overlap_proven(chain: list[dict], cand: list[dict]) -> bool:
             and all(_agrees(ch[k], cd[k], _FALLBACK_TOL) for k in shared))
 
 
+def _dps_values(facts: dict) -> dict[tuple, float]:
+    """(start, end) -> common dividend per share: cash paid first, declared fills its gaps."""
+    per_share: dict[tuple, float] = {}
+    for tag in _DPS_TAGS:
+        for k, v in _period_values([r for r in _facts_for_tag(facts, "us-gaap", tag, "USD/shares")
+                                    if _valid(r)]).items():
+            per_share.setdefault(k, v)
+    return per_share
+
+
 def _identity_proven(facts: dict, concept: str, cand: list[dict]) -> bool:
     """cand == per-share amount x weighted basic shares (see _FALLBACK_TAGS)."""
     shares = _period_values([r for r in _facts_for_tag(facts, "us-gaap", _WASO_TAG, _SHARES) if _valid(r)])
@@ -710,11 +778,7 @@ def _identity_proven(facts: dict, concept: str, cand: list[dict]) -> bool:
         per_share = _period_values([r for r in _facts_for_tag(facts, "us-gaap", _EPS_TAG, "USD/shares") if _valid(r)])
         n, annual = _FALLBACK_EVIDENCE_N, False
     else:
-        per_share = {}
-        for tag in _DPS_TAGS:   # cash paid first, declared fills its gaps
-            for k, v in _period_values([r for r in _facts_for_tag(facts, "us-gaap", tag, "USD/shares")
-                                        if _valid(r)]).items():
-                per_share.setdefault(k, v)
+        per_share = _dps_values(facts)
         n, annual = _IDENTITY_YEARS, True
     vals = _period_values(cand)
     keys = [k for k in vals if per_share.get(k) and shares.get(k)
@@ -747,7 +811,10 @@ def _sum_records(facts: dict, base: str, parts: tuple[str, ...]) -> list[dict]:
 def _continue_with_fallbacks(facts: dict, concept: str, chain: list[dict]) -> tuple[list[dict], list[str]]:
     """Append the proven fallback tags' (then sums') facts that end after the series'
     last period_end; a proven sum also fills an annual-only stretch (_FALLBACK_TAGS,
-    _FALLBACK_SUMS). Returns (records, tags_admitted)."""
+    _FALLBACK_SUMS). Returns (records, tags_admitted). Net income and dividends fill
+    every proven gap instead (_fill_with_fallbacks, ПНЛ11)."""
+    if concept in _GAP_FILL_CONCEPTS:
+        return _fill_with_fallbacks(facts, concept, chain)
     tags = list(_FALLBACK_TAGS.get(concept, []))
     if not chain:
         tags += [t for t in _IDENTITY_TAGS.get(concept, []) if t not in tags]
@@ -782,6 +849,212 @@ def _continue_with_fallbacks(facts: dict, concept: str, chain: list[dict]) -> tu
             out.extend(new)
             admitted.append(tag)
     return out, admitted
+
+
+def _period(r: dict) -> tuple:
+    return (r.get("start", ""), r["end"])
+
+
+def _start_close(a: str, b: str) -> bool:
+    if a == b:
+        return True
+    if not a or not b:
+        return False
+    return abs((date.fromisoformat(a) - date.fromisoformat(b)).days) <= _GAP_START_DAYS
+
+
+def _lacks(series: list[dict]):
+    """Predicate: the series has no period with this end and a start within _GAP_START_DAYS."""
+    by_end: dict[str, list[str]] = {}
+    for r in series:
+        by_end.setdefault(r["end"], []).append(r.get("start", ""))
+    return lambda k: not any(_start_close(k[0], s) for s in by_end.get(k[1], ()))
+
+
+def _pit_usable(recs: list[dict]) -> list[dict]:
+    """The facts pit can use: periodic forms, and a 12-month one only from an annual form."""
+    return [r for r in recs if r.get("form") in _PIT_PERIODIC_FORMS
+            and (not _is_annual(r) or str(r.get("form", "")).startswith(_PIT_ANNUAL_PREFIXES))]
+
+
+def _gap_periods(series: list[dict], cand: list[dict]) -> dict[tuple, str]:
+    """The candidate's periods the series lacks, grouped into gaps (runs with no series
+    period between them), each proven from both sides (_GAP_FILL_CONCEPTS).
+    Returns {period: kind} for the proven gaps; kind is "по средата", "напред", "начало"."""
+    series, cand = _pit_usable(series), _pit_usable(cand)
+    ch, cd = _period_values(series), _period_values(cand)
+    lacks = _lacks(series)
+    seq: list[tuple[str, tuple]] = []      # S shared, C series only, M missing from the series
+    for k in sorted(set(ch) | set(cd), key=lambda k: (k[1], k[0])):
+        if k in ch:
+            seq.append(("S" if k in cd else "C", k))
+        elif lacks(k):
+            seq.append(("M", k))
+    out: dict[tuple, str] = {}
+    i = 0
+    while i < len(seq):
+        if seq[i][0] != "M":
+            i += 1
+            continue
+        j = i
+        while j < len(seq) and seq[j][0] == "M":
+            j += 1
+        has_before = any(t != "M" for t, _ in seq[:i])
+        has_after = any(t != "M" for t, _ in seq[j:])
+        n = _GAP_SIDE_N if has_before and has_after else _FALLBACK_EVIDENCE_N
+        sides = []
+        if has_before:
+            sides.append([k for t, k in seq[:i] if t == "S"][-n:])
+        if has_after:
+            sides.append([k for t, k in seq[j:] if t == "S"][:n])
+        # A side takes its nearest n shared periods; a side whose chain has fewer than
+        # _FALLBACK_MIN_SHARED takes all it has (at least 1), and the gap needs
+        # _FALLBACK_MIN_SHARED in total (В1, Ц. 19.11.2026: KIM, DVN after H1 2025).
+        if (sides and all(len(s) >= 1 for s in sides)
+                and sum(map(len, sides)) >= _FALLBACK_MIN_SHARED
+                and all(_agrees(ch[k], cd[k], _FALLBACK_TOL) for s in sides for k in s)):
+            kind = "по средата" if has_before and has_after else ("напред" if has_before else "начало")
+            out.update((k, kind) for _, k in seq[i:j])
+        i = j
+    return out
+
+
+def _dps_years(facts: dict, recs: list[dict]) -> int:
+    """How many of the records' latest _IDENTITY_YEARS fiscal years carry a nonzero
+    common dividend per share for the same period."""
+    dps = _dps_values(facts)
+    years = sorted({_period(r) for r in recs if _is_annual(r)}, key=lambda k: (k[1], k[0]))[-_IDENTITY_YEARS:]
+    return sum(1 for k in years if dps.get(k))
+
+
+def _annual_overlap_proven(series: list[dict], cand: list[dict]) -> bool:
+    """Р4-4: the latest _IDENTITY_YEARS fiscal years both carry agree within _IDENTITY_TOL."""
+    ch, cd = _period_values(series), _period_values(cand)
+    shared = sorted((k for k in cd if k in ch and k[0]
+                     and (date.fromisoformat(k[1]) - date.fromisoformat(k[0])).days >= 350),
+                    key=lambda k: (k[1], k[0]))[-_IDENTITY_YEARS:]
+    return (len(shared) >= _FALLBACK_MIN_SHARED
+            and all(_agrees(ch[k], cd[k], _IDENTITY_TOL) for k in shared))
+
+
+def _product_records(facts: dict) -> list[dict]:
+    """Р4-3: common dividend per share x weighted basic shares, both from ONE filing (same
+    accn, start, end); cash paid first, declared fills. Labelled _PRODUCT_TAG."""
+    shares = {(r.get("accn"), r.get("start", ""), r["end"]): r["val"]
+              for r in _facts_for_tag(facts, "us-gaap", _WASO_TAG, _SHARES) if _valid(r)}
+    out: dict[tuple, dict] = {}
+    for tag in _DPS_TAGS:
+        for r in _facts_for_tag(facts, "us-gaap", tag, "USD/shares"):
+            if not _valid(r) or not r.get("start"):
+                continue
+            k = (r.get("accn"), r["start"], r["end"])
+            if k in shares and k not in out:
+                out[k] = dict(r, val=round(r["val"] * shares[k]), _rule="Р4-3", _tag=_PRODUCT_TAG)
+    return list(out.values())
+
+
+def _fill_with_fallbacks(facts: dict, concept: str, chain: list[dict]) -> tuple[list[dict], list[str]]:
+    """Net income and dividends (ПНЛ11): the proven fallback tags fill every gap of the
+    series (Р4-2); PaymentsOfOrdinaryDividends needs no proof for a filer without a
+    fiscal-year chain fact that tags a dividend per share (Р4-1); then the dividend
+    continues through the declared tags (Р4-4) or per share x shares (Р4-3). Admitted
+    records carry _rule and _tag (the provenance file). Returns (records, tags_admitted)."""
+    out, admitted = list(chain), []
+    tags = list(_FALLBACK_TAGS.get(concept, []))
+    if not chain:
+        tags += [t for t in _IDENTITY_TAGS.get(concept, []) if t not in tags]
+    for tag in tags:
+        cand = [r for r in _facts_for_tag(facts, "us-gaap", tag, _USD) if _valid(r)]
+        if not cand:
+            continue
+        if (concept == "dividends_paid" and tag == _ORD_TAG and not any(_is_annual(r) for r in out)
+                and _dps_years(facts, cand) >= _DPS_MIN_YEARS):
+            lacks = _lacks(out)
+            new = [dict(r, _rule="Р4-1", _tag=tag) for r in cand if lacks(_period(r))]
+        elif not out:
+            if not (tag in _IDENTITY_TAGS.get(concept, []) and _identity_proven(facts, concept, cand)):
+                continue
+            new = [dict(r, _rule="идентичност", _tag=tag) for r in cand]
+        else:
+            kinds = _gap_periods(out, cand)
+            new = [dict(r, _rule="резерв напред" if kinds[p] == "напред" else f"Р4-2 {kinds[p]}", _tag=tag)
+                   for r in cand if (p := _period(r)) in kinds]
+        if new:
+            out.extend(new)
+            admitted.append(tag)
+    if concept == "dividends_paid":
+        out, more = _continue_dividends(facts, out)
+        admitted += more
+    return out, admitted
+
+
+def _continue_dividends(facts: dict, series: list[dict]) -> tuple[list[dict], list[str]]:
+    """Р4-4 then Р4-3 (see _DECLARED_TAGS, _PRODUCT_TAG): only forward of a paid series,
+    or the whole series when there is no paid fact at all."""
+    out, admitted = list(series), []
+    for tag in _DECLARED_TAGS:
+        cand = [r for r in _facts_for_tag(facts, "us-gaap", tag, _USD) if _valid(r)]
+        if not cand:
+            continue
+        if out:
+            if not _annual_overlap_proven(out, cand):
+                continue
+            last = max(r["end"] for r in out)
+            new = [dict(r, _rule="Р4-4", _tag=tag) for r in cand if r["end"] > last]
+        elif _identity_proven(facts, "dividends_paid", cand):
+            new = [dict(r, _rule="Р4-4", _tag=tag) for r in cand]
+        else:
+            continue
+        if new:
+            out.extend(new)
+            admitted.append(tag)
+    if admitted:
+        return out, admitted
+    prod = _product_records(facts)
+    if not prod:
+        return out, admitted
+    if out:
+        if not _identity_proven(facts, "dividends_paid", out):
+            return out, admitted
+        last = max(r["end"] for r in out)
+        new = [r for r in prod if r["end"] > last]
+    elif _dps_years(facts, prod) >= _DPS_MIN_YEARS:
+        new = prod
+    else:
+        new = []
+    if new:
+        out.extend(new)
+        admitted.append(_PRODUCT_TAG)
+    return out, admitted
+
+
+def _drop_other_line(facts: dict, recs: list[dict]) -> tuple[list[dict], int]:
+    """Р4-5 (_DIV_OTHER_LINE): a chain fact that PaymentsOfOrdinaryDividends from the SAME
+    filing and period contradicts (beyond _FALLBACK_TOL) is another line; it is dropped.
+    The zeros and the larger figure are one cause (В2, Ц. 19.11.2026)."""
+    ordinary = {(r.get("accn"), r.get("start", ""), r["end"]): r["val"]
+                for r in _facts_for_tag(facts, "us-gaap", _ORD_TAG, _USD) if _valid(r)}
+    keep = [r for r in recs if (o := ordinary.get((r.get("accn"), r.get("start", ""), r["end"]))) is None
+            or _agrees(o, r["val"], _FALLBACK_TOL)]
+    return keep, len(recs) - len(keep)
+
+
+def _gross_from_cost(facts: dict, chain: list[dict], cost_tag: str) -> list[dict]:
+    """Р4-6 (_GP_FROM_COST): revenue minus cost_tag from the same filing and period;
+    appended after the chain's last period_end when _overlap_proven holds against the
+    pit-usable chain. Records carry _rule/_tag."""
+    rev: dict[tuple, float] = {}
+    for tag in reversed(_CONCEPTS["revenues"][1]):         # the chain's first tag wins a tie
+        for r in _facts_for_tag(facts, "us-gaap", tag, _USD):
+            if _valid(r):
+                rev[(r.get("accn"), r.get("start", ""), r["end"])] = r["val"]
+    cand = [dict(r, val=rev[k] - r["val"], _rule="Р4-6", _tag=f"Revenues-{cost_tag}")
+            for r in _facts_for_tag(facts, "us-gaap", cost_tag, _USD)
+            if _valid(r) and (k := (r.get("accn"), r.get("start", ""), r["end"])) in rev]
+    if not chain or not _overlap_proven(_pit_usable(chain), _pit_usable(cand)):
+        return chain
+    last = max(r["end"] for r in chain)
+    return chain + [r for r in cand if r["end"] > last]
 
 
 def _own_candidate(facts: dict, own_cache: dict, spec: "_own.OwnSpec") -> list[dict]:
@@ -936,10 +1209,20 @@ def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict,
                 if n_cf:
                     stats.setdefault("da_cf_dropped", {})[ticker] = n_cf
             _tags_used, recs = _union_chain(src, namespace, tags, unit)
+            if concept == "dividends_paid" and ticker in _DIV_OTHER_LINE:
+                recs, n_drop = _drop_other_line(facts, recs)
+                stats.setdefault("div_other_line_dropped", {})[ticker] = n_drop
         if concept in _FALLBACK_TAGS:
             recs, admitted = _continue_with_fallbacks(facts, concept, recs)
             for tag in admitted:
                 stats.setdefault("fallbacks", {}).setdefault(f"{concept}:{tag}", []).append(ticker)
+        if concept == "gross_profit" and ticker in _GP_FROM_COST:
+            n0 = len(recs)
+            recs = _gross_from_cost(facts, recs, _GP_FROM_COST[ticker])
+            stats.setdefault("gp_from_cost", {})[ticker] = len(recs) - n0
+        stats.setdefault("provenance", []).extend(
+            [ticker, concept, r.get("start", ""), r["end"], r["filed"], r["_rule"], r["_tag"]]
+            for r in recs if "_rule" in r)
         if own_specs and concept in own_specs:
             spec = own_specs[concept]
             ref = None
@@ -1082,6 +1365,16 @@ def build(limit: int | None = None) -> dict:
             if i % 50 == 0 or i == len(cache_files):
                 logger.info("[%d/%d] rows so far=%d", i, len(cache_files), stats["rows"])
 
+    with open(_RULES_PATH, "w", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(RULES_COLUMNS)
+        w.writerows(sorted(stats.get("provenance", [])))
+    if stats.get("gp_from_cost"):
+        logger.info("gross_profit: revenue minus cost forward (_GP_FROM_COST, Р4-6): %s",
+                    stats["gp_from_cost"])
+    if stats.get("div_other_line_dropped"):
+        logger.info("dividends_paid: rows of another line dropped (_DIV_OTHER_LINE): %s",
+                    stats["div_other_line_dropped"])
     logger.info("DONE: %d companies, %d rows, %d foreign-unit facts skipped",
                 stats["companies_seen"], stats["rows"], stats["foreign_unit_facts"])
     # Concepts missing for the MOST companies (extraction health signal).

@@ -12,10 +12,10 @@ total_debt,457,0.9085
 capex,449,0.8926
 buybacks,436,0.8668
 current_liabilities,422,0.839
+dividends_paid,413,0.8211
 depreciation_amortization,406,0.8072
-dividends_paid,403,0.8012
 operating_income,397,0.7893
-gross_profit,193,0.3837
+gross_profit,213,0.4235
 
 # section: per-year company count with a revenues fact
 year,companies_with_revenues
