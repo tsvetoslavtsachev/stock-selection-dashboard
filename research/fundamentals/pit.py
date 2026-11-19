@@ -92,17 +92,28 @@ _HORIZONS = {1: 91, 2: 182, 3: 273, 4: 365}   # n-quarters-cumulative -> nominal
 _PERIODIC_FORMS = frozenset({"10-Q", "10-Q/A", "10-QT", "10-K", "10-K/A", "10-KT", "20-F", "20-F/A"})
 _ANNUAL_PREFIXES = ("10-K", "20-F")
 _DAY = pd.Timedelta(days=1)
+_NS_DAY = _DAY.value   # nanoseconds in a day: whole-day keys for the guard
 _JOIN_TOL = 7          # days: two pieces join if one starts within a week of the other's end
 # A TTM whose window ends more than this many days before the ticker's latest
-# revenues period_end is NaN (100 = the G6 threshold). None = off: Ц. 14.10.2026
-# (ПНЛ7, СТОП А) - off until the screen shows an unknown dividend as unknown, not
-# 0% (reverse.dividend_flat), and the P/E history rule is decided.
-_STALE_TTM_DAYS = None
+# revenues period_end is NaN (100 = the G6 threshold), except a sum of exactly 0:
+# "stopped" means zero, and zero does not go stale (buybacks, dividends that ended).
+# On since Ц. 19.11.2026 (PNL10-RESHENIA.md, Р1 (в) with (б′)): for every flow and,
+# through ``stale_ref`` in valuation-organ, for the P/E history too. None = off.
+_STALE_TTM_DAYS = 100
 # When the latest quarter of the concept itself cannot be tiled, the window may end
 # at most this many days earlier (one quarter back); further back is NaN, not a
 # years-old sum (EIX net income: no FY2021/FY2022 -> the 12 months to 2021-09-30
-# would stand in for 2022-2026). None = fall back without limit.
-_FALLBACK_DAYS = 100
+# would stand in for 2022-2026). None = fall back without limit. 120, not 100: a
+# 16-week first quarter (KR) ends 112 days after the year before it (ПНЛ12, Р5.1).
+_FALLBACK_DAYS = 120
+# The guard (ПНЛ12, Р2; Ц. 19.11.2026, PNL10-RESHENIA.md): a filed discrete quarter
+# that differs by more than this share from the difference of the cumulative levels
+# for the same period is dropped, unless it was filed after them or the levels come
+# from a restating filing (see ``_guard``). 0.005 = the panel's tolerance everywhere.
+_GUARD_TOL = 0.005
+# Starts of cumulative levels within this many days of each other are one fiscal
+# year: a 10-Q tag may start a day or a few after the 10-K's (ПНЛ12, Р5.2).
+_START_TOL = 7
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +220,8 @@ def _segments(recs: list[dict]) -> list[dict]:
       Adjacent known levels m < n give a piece of n - m quarters (H1 alone after the
       year start = 2 quarters; FY - 9M = Q4). The lower level is taken as known when
       the upper one was filed (same vintage): after a divestiture the restated 9M
-      minus the old 10-K FY is no quarter at all (BDX FY25: 21.84bn - 13.54bn)."""
+      minus the old 10-K FY is no quarter at all (BDX FY25: 21.84bn - 13.54bn).
+    A filed quarter that contradicts the levels of its period is dropped (``_guard``)."""
     segs: list[dict] = []
     for (ps, pe), d in _best_by(
         [r for r in recs if r["ndur"] == 1], key=lambda r: (r["period_start"], r["period_end"])
@@ -217,10 +229,11 @@ def _segments(recs: list[dict]) -> list[dict]:
         segs.append({"begin": ps, "end": pe, "nq": 1, "value": d["value"],
                      "kind": "q", "filed": d["filed"], "fy": None, "q_index": None})
 
-    cum = _best_by(recs, key=lambda r: (r["period_start"], r["ndur"]))
+    canon = _canonical_starts(recs)
+    cum = _best_by(recs, key=lambda r: (canon[r["period_start"]], r["ndur"]))
     hist: dict = {}
     for r in recs:
-        hist.setdefault((r["period_start"], r["ndur"]), []).append(r)
+        hist.setdefault((canon[r["period_start"]], r["ndur"]), []).append(r)
     for ps in sorted({k[0] for k in cum}):
         levels = [n for n in range(1, 5) if (ps, n) in cum]
         if levels == [1]:
@@ -241,7 +254,81 @@ def _segments(recs: list[dict]) -> list[dict]:
                          "value": top["value"] - base, "kind": "d", "filed": top["filed"],
                          "fy": label, "q_index": n})
             prev_n, prev_end = n, top["period_end"]
-    return segs
+    return _guard(segs, recs)
+
+
+def _canonical_starts(recs: list[dict]) -> dict:
+    """period_start -> the start of its fiscal year's ladder. Starts closer than
+    _START_TOL days to the previous one in sorted order are one year when their
+    levels COMPLEMENT each other (52/53-week filers: the 10-Q levels 1-3 from
+    2025-01-02, the 10-K level 4 from 2025-01-01). Where two starts both carry a
+    level (JCI after the Tyco merger: the old FY from 2013-09-28 and Tyco's from
+    2013-10-01; YUM's restated calendar years after the China spin-off) they are
+    different years of different vintages and stay apart. The ladder's start is the
+    one the annual level uses, else the earliest."""
+    levels: dict = {}
+    for r in recs:
+        levels.setdefault(r["period_start"], set()).add(r["ndur"])
+    groups: list[list] = []
+    for s in sorted(levels):
+        if groups and (s - groups[-1][-1]).days <= _START_TOL:
+            groups[-1].append(s)
+        else:
+            groups.append([s])
+    canon: dict = {}
+    for grp in groups:
+        disjoint = sum(len(levels[s]) for s in grp) == len(set().union(*(levels[s] for s in grp)))
+        if len(grp) == 1 or not disjoint:
+            canon.update({s: s for s in grp})
+            continue
+        pick = next((s for s in grp if 4 in levels[s]), grp[0])
+        canon.update({s: pick for s in grp})
+    return canon
+
+
+def _guard(segs: list[dict], recs: list[dict]) -> list[dict]:
+    """Drop a filed discrete quarter (kind "q") that contradicts the cumulative levels
+    of the same period (kind "d", one quarter) by more than _GUARD_TOL, e.g. TSCO
+    filing the whole year's net income under a Q4 label (1.881bn vs FY - 9M =
+    1.012bn). Two exceptions keep the filed quarter:
+
+    * it was filed AFTER the levels: a later quarter is a restatement and wins;
+    * the levels come from a RESTATING filing (one that refiles an already known
+      period with a value off by more than _GUARD_TOL): its FY minus the old 9M is
+      a mix of vintages, not a quarter (DD revenues after a divestiture).
+
+    ПНЛ10 measured this rule at the bar 2026-09-11: 0 of 3 823 agreeing sums moved,
+    10 of 10 of classes A and C fixed (PNL10-RESHENIA.md, Р2)."""
+    if _GUARD_TOL is None:
+        return segs
+
+    def off(a: float, b: float) -> bool:
+        return abs(a - b) > _GUARD_TOL * max(abs(a), abs(b), 1.0)
+
+    restating: set = set()
+    first: dict = {}
+    for r in sorted(recs, key=lambda r: r["filed"]):
+        k = (r["period_start"], r["period_end"])
+        if k in first and r["filed"] > first[k]["filed"] and off(r["value"], first[k]["value"]):
+            restating.add(r["filed"])
+        first.setdefault(k, r)
+    by_end: dict = {}          # end (whole days) -> one-quarter differences ending then
+    for d in segs:
+        if d["kind"] == "d" and d["nq"] == 1 and d["filed"] not in restating:
+            by_end.setdefault(d["end"].value // _NS_DAY, []).append(d)
+    if not by_end:
+        return segs
+    keep = []
+    for s in segs:
+        if s["kind"] == "q":
+            e = s["end"].value // _NS_DAY
+            twins = [d for k in range(e - _JOIN_TOL, e + _JOIN_TOL + 1) for d in by_end.get(k, ())]
+            if any(abs((d["begin"] - s["begin"]).days) <= _JOIN_TOL
+                   and off(d["value"], s["value"]) and s["filed"] <= d["filed"]
+                   for d in twins):
+                continue
+        keep.append(s)
+    return keep
 
 
 def _chain(segs: list[dict], end, need: int) -> list[dict] | None:
@@ -266,7 +353,7 @@ def _quarters_for_flow(g: pd.DataFrame) -> pd.DataFrame:
     A quarter is either filed directly (~90d) or the difference of two adjacent
     cumulative levels of the same fiscal year (Q2 = H1 - Q1, Q3 = 9M - H1,
     Q4 = FY - 9M; see ``_segments``). Where both exist for the same quarter-end the
-    filed one wins. ``fy`` is the calendar year of the fiscal year's end."""
+    filed one wins, unless ``_guard`` dropped it. ``fy`` is the calendar year of the fiscal year's end."""
     segs = [s for s in _segments(_flow_records(g)) if s["nq"] == 1]
     if not segs:
         return pd.DataFrame(columns=["fy", "q_index", "period_end", "value"])
@@ -293,7 +380,8 @@ def ttm_window(g: pd.DataFrame, stale_ref=None) -> dict:
     Returns {"value", "start", "end", "q_ends", "stale"}; value NaN when no four contiguous
     quarters exist, or when ``stale_ref`` (the ticker's latest revenues period_end)
     is given and the window ends more than _STALE_TTM_DAYS before it: a sum of
-    quarters from years ago is not a trailing twelve months (INTC D&A from 2019)."""
+    quarters from years ago is not a trailing twelve months (INTC D&A from 2019).
+    A stale sum of exactly 0 stays 0 with ``stale`` True: a flow that stopped."""
     empty = {"value": np.nan, "start": None, "end": None, "q_ends": [], "stale": False}
     segs = _segments(_flow_records(g))
     if not segs:
@@ -305,11 +393,13 @@ def ttm_window(g: pd.DataFrame, stale_ref=None) -> dict:
         ch = _chain(segs, end, 4)
         if ch is None:
             continue
-        if (stale_ref is not None and _STALE_TTM_DAYS is not None and not pd.isna(stale_ref)
-                and (pd.Timestamp(stale_ref) - end).days > _STALE_TTM_DAYS):
+        value = float(sum(s["value"] for s in ch))
+        stale = (stale_ref is not None and _STALE_TTM_DAYS is not None and not pd.isna(stale_ref)
+                 and (pd.Timestamp(stale_ref) - end).days > _STALE_TTM_DAYS)
+        if stale and value != 0.0:
             return {**empty, "end": end, "stale": True}
-        return {"value": float(sum(s["value"] for s in ch)), "start": ch[0]["begin"],
-                "end": end, "q_ends": [s["end"] for s in ch], "stale": False}
+        return {"value": value, "start": ch[0]["begin"],
+                "end": end, "q_ends": [s["end"] for s in ch], "stale": stale}
     return empty
 
 
