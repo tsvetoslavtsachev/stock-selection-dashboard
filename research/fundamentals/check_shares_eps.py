@@ -93,7 +93,8 @@ def _first_last(items) -> list[tuple]:
 
 def _companyfacts_eps(cik10: str, kind: str) -> list[tuple]:
     p = bp._CACHE_DIR / f"CIK{cik10}.json"
-    f = json.loads(p.read_text(encoding="utf-8"))["facts"].get("us-gaap", {})
+    from research.fundamentals.facts_overlay import load_facts
+    f = load_facts(p).get("us-gaap", {})
     for tag in _EPS_TAGS[kind]:
         lst = f.get(tag, {}).get("units", {}).get("USD/shares", [])
         if lst:

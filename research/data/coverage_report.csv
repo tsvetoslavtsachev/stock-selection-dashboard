@@ -7,9 +7,9 @@ operating_cash_flow,503,1.0
 cash_and_equivalents,502,0.998
 net_income,501,0.996
 shares_outstanding,500,0.994
-revenues,493,0.9801
+revenues,494,0.9821
 total_debt,457,0.9085
-capex,449,0.8926
+capex,450,0.8946
 buybacks,438,0.8708
 current_liabilities,422,0.839
 dividends_paid,413,0.8211
@@ -35,5 +35,5 @@ year,companies_with_revenues
 2022,488
 2023,491
 2024,492
-2025,492
-2026,489
+2025,493
+2026,491

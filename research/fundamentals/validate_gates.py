@@ -59,6 +59,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from research.fundamentals import debt, g6_stamp, pit  # noqa: E402
+from research.fundamentals.facts_overlay import load_facts  # noqa: E402
 
 logger = logging.getLogger("validate_gates")
 
@@ -302,7 +303,7 @@ def g6a_da_full_line(panel: pd.DataFrame, cache_dir: Path | None = None) -> list
         path = cache_dir / f"CIK{int(cik):010d}.json"
         if not path.exists():
             continue
-        facts = json.loads(path.read_text(encoding="utf-8")).get("facts", {})
+        facts = load_facts(path)    # companyfacts + the instance backfill
         key = lambda r: (r.get("start", ""), r["end"], r["filed"])
         dep = {key(r): r["val"] for r in bp._facts_for_tag(facts, "us-gaap", "Depreciation", "USD") if bp._valid(r)}
         ok = {key(r) + (r["val"],) for t in sources
@@ -407,11 +408,24 @@ def g6_all(panel: pd.DataFrame, today: date | None = None) -> dict:
     the G7 panel freshness, in one verdict."""
     from research.fundamentals.build_panel import _DEBT_FREE
     g6 = g6_staleness(panel, load_staleness_baseline())
-    g6["failures"] += g7_freshness(panel, today)
-    g6["failures"] += g7b_lagging_names(panel, today=today)
+    # G7 and G7b are kept apart as well: Ц. decided (25.11.2026, "Само предупреждение") that in CI a
+    # missed monthly rebuild only WARNS, while locally (the monthly ritual) it stays a failure.
+    g6["freshness"] = g7_freshness(panel, today) + g7b_lagging_names(panel, today=today)
+    g6["failures"] += g6["freshness"]
     g6["failures"] += g6d_debt_declarations(panel, _DEBT_FREE)
     g6["failures"] += g6a_da_full_line(panel)
     return g6
+
+
+def _exit_code(g6: dict, warn_freshness: bool = False) -> int:
+    """1 on any failure; with warn_freshness the G7/G7b failures become ::warning:: lines (GitHub
+    Actions annotations) and only G6, G6d and G6a decide the exit code."""
+    fresh = list(g6.get("freshness", []))
+    hard = [f for f in g6["failures"] if not (warn_freshness and f in fresh)]
+    if warn_freshness:
+        for f in fresh:
+            print(f"::warning title=SEC panel freshness::{f}")
+    return 1 if hard else 0
 
 
 def _stamp_if_canonical(panel_path: Path, g6: dict) -> None:
@@ -503,6 +517,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="run G6 only, against this panel instead of the built one")
     ap.add_argument("--write-baseline", action="store_true",
                     help="refreeze research/data/staleness_baseline.csv from the built panel")
+    ap.add_argument("--warn-freshness", action="store_true",
+                    help="CI: G7 (panel age) and G7b (frozen names) only WARN (::warning:: in the log); "
+                         "G6, G6d and G6a still fail. Locally, without this flag, they fail.")
     ap.add_argument("--no-stamp", action="store_true",
                     help="with --panel on the canonical panel: check only, leave g6_stamp.json alone (CI)")
     args = ap.parse_args(argv)
@@ -523,7 +540,7 @@ def main(argv: list[str] | None = None) -> int:
         _report_g6(g6)
         if not args.no_stamp:
             _stamp_if_canonical(args.panel, g6)
-        return 1 if g6["failures"] else 0
+        return _exit_code(g6, args.warn_freshness)
     res = run()
     return 1 if res["g6_failures"] else 0
 

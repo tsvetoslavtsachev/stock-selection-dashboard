@@ -73,6 +73,10 @@ def latest_balance(cik10: str) -> tuple[str, str] | None:
     p = _CACHE_DIR / f"CIK{cik10}.json"
     if not p.exists():
         return None
+    # companyfacts only, NOT the instance backfill (25.11.2026): the face (debt lines of the latest
+    # balance sheet) applies to a name's whole history, so a newer balance sheet moves it. EQR, ESS,
+    # AEE, EVRG shifted 87 historical total_debt rows (EQR 2019: 9.04 -> 10.13 bn) when the backfilled
+    # Q3 became "latest"; that waits for a reviewed face, not an automatic one.
     g = json.loads(p.read_text(encoding="utf-8")).get("facts", {}).get("us-gaap", {})
     recs = [r for r in g.get("Assets", {}).get("units", {}).get("USD", [])
             if r.get("form") in FORMS and r.get("accn")]

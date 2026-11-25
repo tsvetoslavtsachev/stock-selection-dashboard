@@ -51,6 +51,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from research.fundamentals import debt as _debt  # noqa: E402
 from research.fundamentals import collect_own_tags as _own  # noqa: E402
+from research.fundamentals.facts_overlay import load_facts  # noqa: E402
 
 logger = logging.getLogger("build_panel")
 
@@ -1353,14 +1354,12 @@ def build(limit: int | None = None) -> dict:
                 continue
 
             try:
-                with open(path, encoding="utf-8") as f:
-                    data = json.load(f)
+                facts = load_facts(path)    # companyfacts + the instance backfill (facts_overlay)
             except (json.JSONDecodeError, OSError) as exc:
                 logger.warning("Bad cache file %s: %s", path.name, exc)
                 stats["companies_no_cache"] += 1
                 continue
 
-            facts = data.get("facts", {})
             _count_foreign(facts, stats)
             for ticker in tickers:
                 spec = class_table.get(ticker)

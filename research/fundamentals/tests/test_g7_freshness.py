@@ -85,3 +85,31 @@ def test_real_panel_lagging_names_are_all_in_the_baseline():
     base = validate_gates.load_lag_baseline()
     assert (base["reason"].fillna("").str.strip() != "").all()
     assert validate_gates.g7b_lagging_names(real, base, date(2026, 11, 25)) == []
+
+
+# ---------------------------------------------------------------------------
+# CI vs local (Ц., 25.11.2026: "Само предупреждение")
+# ---------------------------------------------------------------------------
+def _stale_today(monkeypatch):
+    """The real panel looked at from 2099: older than 45 days, every name lagging."""
+    orig = validate_gates.g6_all
+    monkeypatch.setattr(validate_gates, "g6_all", lambda panel, today=None: orig(panel, today=date(2099, 1, 1)))
+
+
+def test_stale_panel_is_a_warning_in_ci_and_a_failure_locally(monkeypatch, capsys):
+    _stale_today(monkeypatch)
+    args = ["--panel", str(validate_gates._PANEL_PATH), "--no-stamp"]
+    assert validate_gates.main(args + ["--warn-freshness"]) == 0          # CI: warns, does not stop
+    out = capsys.readouterr().out
+    assert "::warning title=SEC panel freshness::STALE_PANEL" in out and "LAGGING_NAME" in out
+    assert validate_gates.main(args) == 1                                   # local ritual: failure
+    assert "::warning" not in capsys.readouterr().out
+
+
+def test_g6_stays_a_hard_stop_in_ci_mode(monkeypatch, capsys):
+    import pandas as pd
+    monkeypatch.setattr(validate_gates, "load_staleness_baseline",
+                        lambda path=validate_gates._STALENESS_BASELINE_PATH:
+                        pd.DataFrame(columns=validate_gates._BASELINE_COLUMNS))
+    args = ["--panel", str(validate_gates._PANEL_PATH), "--no-stamp", "--warn-freshness"]
+    assert validate_gates.main(args) == 1          # an empty baseline makes every stale pair NEW: G6 fails
