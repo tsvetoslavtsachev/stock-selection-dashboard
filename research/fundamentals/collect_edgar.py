@@ -10,6 +10,9 @@ Design notes
 * Resumable   — a CIK whose cache file already exists (and parses) is skipped, so
                 a re-run only fetches what is missing. The multi-tens-of-minutes
                 first run can be interrupted and resumed at no cost.
+                The same rule means a cached CIK is NEVER refreshed: the monthly rebuild must
+                run with --force (the 25.11.2026 panel stopped at filed 07.10 because it did
+                not; validate_gates G7 now fails a panel whose latest filed is over 45 days old).
 * Rate limit  — the fetch goes through src.lib.sec_client.SECClient, which already
                 sleeps ~0.12 s between requests (~8 req/s), inside SEC's 10 req/s
                 cap. We do NOT re-implement throttling.

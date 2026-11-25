@@ -247,7 +247,14 @@ _FALLBACK_TAGS: dict[str, list[str]] = {
     # read in its latest filing (HOOD, ROP; MTB; KKR), admitted only where proven
     "capex": ["PaymentsForCapitalImprovements", "PaymentsToAcquireOtherPropertyPlantAndEquipment",
               "PaymentsToAcquireOtherProductiveAssets", "PaymentsForProceedsFromProductiveAssets",
-              "PaymentsToAcquireFurnitureAndFixtures"],
+              "PaymentsToAcquireFurnitureAndFixtures",
+              # ПНЛ-G7 (25.11.2026): DOW's Q3 10-Q carries only this tag; equal to
+              # PaymentsToAcquireProductiveAssets on 25 of 25 shared periods
+              "PaymentsToAcquireMachineryAndEquipment",
+              # FCX (25.11.2026): its Q2/Q3 10-Q carry the capex only as the segment total;
+              # equal to PaymentsToAcquireProductiveAssets on 4 of 4 shared periods (2025).
+              # By name (_SUM_ONLY): the segment total is accrual-based and differs elsewhere.
+              "SegmentExpenditureAdditionToLongLivedAssets"],
     "cash_and_equivalents": [
         "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsIncludingDisposalGroupAndDiscontinuedOperations",
         "Cash",
@@ -277,7 +284,26 @@ _FALLBACK_SUMS: dict[str, list[tuple[str, tuple[str, ...]]]] = {
         "AmortizationOfIntangibleAssets",
         "FiniteLivedIntangibleAssetsAmortizationExpense",
         "AmortizationOfAcquiredIntangibleAssets",
-    ))],
+    )),
+        # ПНЛ-G7 (25.11.2026): CHD tags the amortization part of its cash-flow line as
+        # AdjustmentForAmortization (it also tags AmortizationOfIntangibleAssets, a different
+        # number): Depreciation + AdjustmentForAmortization equals the full line on the
+        # latest 8 shared periods. A separate sum, so the "first part wins" rule of the sum
+        # above cannot shadow it; each is admitted only by its own overlap proof.
+        ("Depreciation", ("AdjustmentForAmortization",))],
+    # DAL (25.11.2026): the cash-flow capex is two lines, flight equipment + ground property
+    # (PaymentsToAcquireOtherProductiveAssets); from Q2 2026 the total tag is gone. The sum
+    # equals PaymentsToAcquireProductiveAssets on 54 of 54 shared periods, FY2025 4 499 mln.
+    "capex": [("PaymentsForFlightEquipment", ("PaymentsToAcquireOtherProductiveAssets",))],
+}
+# A sum admitted only for the names listed (key = the sum's name in _continue_with_fallbacks).
+# Depreciation + AdjustmentForAmortization: CHD (proven to 2026-03-31, 24 of 28 periods, the
+# latest 8 exact). ECL and KEYS would also pass the proof, but on shared periods that end in
+# 2012 and 2018: extending them to 2026 rests on 6 and 5 old periods, so they wait for Ц.
+_SUM_ONLY: dict[str, frozenset[str]] = {
+    "Depreciation+AdjustmentForAmortization": frozenset({"CHD"}),
+    "PaymentsForFlightEquipment+PaymentsToAcquireOtherProductiveAssets": frozenset({"DAL"}),
+    "SegmentExpenditureAdditionToLongLivedAssets": frozenset({"FCX"}),
 }
 # Names whose D&A tags are not operating D&A: no rows, the gap is explained in G6.
 _DA_NA: dict[str, str] = {
@@ -808,7 +834,8 @@ def _sum_records(facts: dict, base: str, parts: tuple[str, ...]) -> list[dict]:
     return out
 
 
-def _continue_with_fallbacks(facts: dict, concept: str, chain: list[dict]) -> tuple[list[dict], list[str]]:
+def _continue_with_fallbacks(facts: dict, concept: str, chain: list[dict],
+                             ticker: str = "") -> tuple[list[dict], list[str]]:
     """Append the proven fallback tags' (then sums') facts that end after the series'
     last period_end; a proven sum also fills an annual-only stretch (_FALLBACK_TAGS,
     _FALLBACK_SUMS). Returns (records, tags_admitted). Net income and dividends fill
@@ -821,6 +848,8 @@ def _continue_with_fallbacks(facts: dict, concept: str, chain: list[dict]) -> tu
     sums = {f"{b}+{'|'.join(p)}": (b, p) for b, p in _FALLBACK_SUMS.get(concept, [])} if chain else {}
     out, admitted = list(chain), []
     for tag in tags + list(sums):
+        if tag in _SUM_ONLY and ticker not in _SUM_ONLY[tag]:
+            continue
         if tag in sums:
             cand = _sum_records(facts, *sums[tag])
         else:
@@ -1213,7 +1242,7 @@ def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict,
                 recs, n_drop = _drop_other_line(facts, recs)
                 stats.setdefault("div_other_line_dropped", {})[ticker] = n_drop
         if concept in _FALLBACK_TAGS:
-            recs, admitted = _continue_with_fallbacks(facts, concept, recs)
+            recs, admitted = _continue_with_fallbacks(facts, concept, recs, ticker)
             for tag in admitted:
                 stats.setdefault("fallbacks", {}).setdefault(f"{concept}:{tag}", []).append(ticker)
         if concept == "gross_profit" and ticker in _GP_FROM_COST:

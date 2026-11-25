@@ -73,6 +73,11 @@ _RECENT_YEAR = 2024
 _G2_THRESHOLD = 0.90
 _G2_REQUIRED = ["net_income", "stockholders_equity", "total_assets", "revenues"]
 _MEGACAPS = ["AAPL", "MSFT", "JPM", "XOM", "JNJ"]
+_FRESH_DAYS = 45    # G7: max age of the panel's latest `filed` (see g7_freshness)
+_LAG_NAME_DAYS = 140   # G7b: a name whose latest 10-Q/10-K is older than this is frozen (see g7b_lagging_names)
+_LAG_BASELINE_PATH = _REPO_ROOT / "research" / "data" / "lag_baseline.csv"
+_LAG_COLUMNS = ["ticker", "last_filed", "reason"]
+_ANNUAL_QUARTERLY_FORMS = ("10-K", "10-Q", "10-KT", "10-K/A", "10-Q/A")
 _STALE_DAYS = 100   # same threshold as valuation-organ scripts/build_cash_table.STALE_DAYS
 _BASELINE_COLUMNS = ["ticker", "concept", "last_period_end", "revenues_period_end", "lag_days", "reason"]
 
@@ -326,11 +331,84 @@ def g6a_da_full_line(panel: pd.DataFrame, cache_dir: Path | None = None) -> list
     return fails
 
 
-def g6_all(panel: pd.DataFrame) -> dict:
-    """G6 staleness ratchet plus the G6d debt declarations and the G6a D&A definition,
-    in one verdict."""
+def g7_freshness(panel: pd.DataFrame, today: date | None = None,
+                 max_days: int = _FRESH_DAYS) -> list[str]:
+    """G7 (25.11.2026): the panel must have seen a filing lately. G6 measures each concept
+    against the SAME ticker's latest revenues, so a panel frozen as a whole (every name stuck
+    at the same quarter) passes it: on 25.11.2026 the panel stopped at filed 07.10.2026 and G6
+    was green. The gate compares the latest `filed` with the calendar. Calibrated on the panel
+    itself (2022-2026): the longest stretch without any 10-K/10-Q filing is 13 days, so a
+    monthly rebuild never trips the 45 days; a panel not rebuilt since the last season does."""
+    today = today or date.today()
+    if panel.empty:
+        return ["STALE_PANEL: empty panel"]
+    last = pd.Timestamp(panel["filed"].max()).date()
+    age = (today - last).days
+    if age > max_days:
+        return [f"STALE_PANEL filed.max {last} is {age} days behind {today} (limit {max_days}): "
+                "rebuild with collect_edgar --force, the other collectors, build_panel"]
+    return []
+
+
+def lagging_names(panel: pd.DataFrame, today: date | None = None,
+                  max_days: int = _LAG_NAME_DAYS) -> pd.DataFrame:
+    """Names whose latest 10-K/10-Q `filed` in the panel is more than max_days old."""
+    today = pd.Timestamp(today or date.today())
+    f = panel[panel["form"].isin(_ANNUAL_QUARTERLY_FORMS)]
+    last = f.groupby("ticker")["filed"].max()
+    out = last[(today - last).dt.days > max_days].sort_values()
+    return pd.DataFrame({"ticker": out.index, "last_filed": [d.date().isoformat() for d in out]})
+
+
+def load_lag_baseline(path: Path = _LAG_BASELINE_PATH) -> pd.DataFrame:
+    if not path.exists():
+        return pd.DataFrame(columns=_LAG_COLUMNS)
+    base = pd.read_csv(path, dtype=str)
+    base["reason"] = base["reason"].fillna("") if "reason" in base.columns else ""
+    return base
+
+
+def write_lag_baseline(panel: pd.DataFrame, today: date | None = None,
+                       path: Path = _LAG_BASELINE_PATH) -> int:
+    lag = lagging_names(panel, today)
+    keep = {r.ticker: r.reason for r in load_lag_baseline(path).itertuples()}
+    lag["reason"] = [keep.get(t, "") for t in lag["ticker"]]
+    lag.to_csv(path, index=False)
+    return len(lag)
+
+
+def g7b_lagging_names(panel: pd.DataFrame, baseline: pd.DataFrame | None = None,
+                      today: date | None = None) -> list[str]:
+    """G7b (25.11.2026): a NAME frozen at an old quarter. G6 measures each concept against the
+    same ticker's own latest revenues, and G7 against the panel's latest filing, so 17 names
+    (XOM, PLD, SO, DUK, NEE, AEP ...) stuck at Q1 2026 passed both: SEC companyfacts does not
+    carry their later 10-Qs although `submissions` lists them (memory sec-companyfacts-lags-
+    submissions, a known trap). Ratchet like G6: a lagging name not in lag_baseline.csv fails
+    (NEW), one in it without a reason fails (UNEXPLAINED); a name that caught up is only logged."""
+    base = load_lag_baseline() if baseline is None else baseline
+    lag = lagging_names(panel, today)
+    known = {r.ticker: str(r.reason or "").strip() for r in base.itertuples()}
+    fails = []
+    for r in lag.itertuples():
+        if r.ticker not in known:
+            fails.append(f"LAGGING_NAME {r.ticker}: latest 10-Q/10-K filed {r.last_filed} "
+                         f"(over {_LAG_NAME_DAYS} days); companyfacts has not caught up, "
+                         "compare with SECClient.submissions")
+        elif not known[r.ticker]:
+            fails.append(f"LAGGING_UNEXPLAINED {r.ticker}: in lag_baseline.csv without a reason")
+    healed = sorted(set(known) - set(lag["ticker"]))
+    if healed:
+        logger.info("G7b healed (refreeze lag_baseline.csv to lock in): %s", ", ".join(healed))
+    return fails
+
+
+def g6_all(panel: pd.DataFrame, today: date | None = None) -> dict:
+    """G6 staleness ratchet plus the G6d debt declarations, the G6a D&A definition and
+    the G7 panel freshness, in one verdict."""
     from research.fundamentals.build_panel import _DEBT_FREE
     g6 = g6_staleness(panel, load_staleness_baseline())
+    g6["failures"] += g7_freshness(panel, today)
+    g6["failures"] += g7b_lagging_names(panel, today=today)
     g6["failures"] += g6d_debt_declarations(panel, _DEBT_FREE)
     g6["failures"] += g6a_da_full_line(panel)
     return g6
@@ -434,8 +512,11 @@ def main(argv: list[str] | None = None) -> int:
         datefmt="%H:%M:%S",
     )
     if args.write_baseline:
-        n = write_staleness_baseline(pit.load_panel(_PANEL_PATH))
+        full = pit.load_panel(_PANEL_PATH)
+        n = write_staleness_baseline(full)
         logger.info("G6 baseline frozen: %d known stale pairs -> %s", n, _STALENESS_BASELINE_PATH)
+        n = write_lag_baseline(full)
+        logger.info("G7b lag baseline frozen: %d lagging names -> %s", n, _LAG_BASELINE_PATH)
         return 0
     if args.panel is not None:
         g6 = g6_all(pit.load_panel(args.panel))

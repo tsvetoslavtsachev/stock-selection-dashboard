@@ -133,7 +133,7 @@ def test_parse_instance_keeps_only_undimensioned_usd_extension_facts():
 
 def test_own_tags_table_is_by_name_and_well_formed():
     table = collect_own_tags.load_table()
-    assert len(table) == 12
+    assert len(table) == 13      # 12 + BG buybacks (25.11.2026, listed, the proof refuses it)
     for (ticker, concept), spec in table.items():
         assert concept in build_panel._CONCEPTS, (ticker, concept)
         for t in spec.tags:

@@ -11,3 +11,4 @@ D,capex,d:PaymentsToAcquirePropertyPlantAndEquipmentIncludingNuclearFuel,,,„Pl
 TPL,capex,tpl:PaymentsToAcquireEquipmentAndOtherAcquisitionOfRealEstate,,,„Purchases of fixed assets“; недвижимите имоти отделно; пробата пада (ПНЛ4г)
 URI,capex,uri:PaymentsToAcquirePropertySubjectToOrAvailableForOperatingLease+uri:PaymentsToAcquirePropertyPlantAndEquipmentAndIntangibleAssets,,,наемно + ненаемно оборудване, сбор от едно подаване; пробата пада (ПНЛ4г)
 WRB,capex,wrb:PaymentstoAcquirePropertyPlantandEquipmentNet,,,„Net proceeds from sale (purchases) of property, furniture and equipment“ (ПНЛ4в)
+BG,buybacks,bg:PaymentsForRepurchaseOfRegisteredStock,,,"„Repurchase of registered stock“ (собствен таг от 2026, 249 млн за 9М); пробата пада: общи периода с веригата няма, us-gaap паричният ред е само годишен (разследване 25.11.2026)"
