@@ -29,6 +29,10 @@ ACN,dividends_paid,,2025-02-14,2025-03-20,резерв напред,PaymentsOfOr
 ACN,dividends_paid,,2025-02-14,2025-10-10,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,,2025-05-15,2025-10-10,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,,2025-08-15,2025-10-10,резерв напред,PaymentsOfOrdinaryDividends
+ACN,dividends_paid,,2025-11-14,2026-10-16,резерв напред,PaymentsOfOrdinaryDividends
+ACN,dividends_paid,,2026-02-13,2026-10-16,резерв напред,PaymentsOfOrdinaryDividends
+ACN,dividends_paid,,2026-05-15,2026-10-16,резерв напред,PaymentsOfOrdinaryDividends
+ACN,dividends_paid,,2026-08-14,2026-10-16,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2010-03-01,2010-05-31,2010-10-26,Р4-2 по средата,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2022-09-01,2023-08-31,2023-10-12,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2022-09-01,2023-08-31,2024-09-30,резерв напред,PaymentsOfOrdinaryDividends
@@ -42,6 +46,7 @@ ACN,dividends_paid,2023-09-01,2024-05-31,2024-06-20,резерв напред,Pa
 ACN,dividends_paid,2023-09-01,2024-05-31,2025-06-20,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2023-09-01,2024-08-31,2024-10-10,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2023-09-01,2024-08-31,2025-10-10,резерв напред,PaymentsOfOrdinaryDividends
+ACN,dividends_paid,2023-09-01,2024-08-31,2026-10-16,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2024-09-01,2024-11-30,2024-12-19,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2024-09-01,2024-11-30,2025-06-20,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2024-09-01,2024-11-30,2025-12-18,резерв напред,PaymentsOfOrdinaryDividends
@@ -50,6 +55,7 @@ ACN,dividends_paid,2024-09-01,2025-02-28,2026-03-19,резерв напред,Pa
 ACN,dividends_paid,2024-09-01,2025-05-31,2025-06-20,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2024-09-01,2025-05-31,2026-06-18,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2024-09-01,2025-08-31,2025-10-10,резерв напред,PaymentsOfOrdinaryDividends
+ACN,dividends_paid,2024-09-01,2025-08-31,2026-10-16,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2024-12-01,2025-02-28,2025-06-20,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2025-03-01,2025-05-31,2025-06-20,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2025-09-01,2025-11-30,2025-12-18,резерв напред,PaymentsOfOrdinaryDividends
@@ -57,6 +63,7 @@ ACN,dividends_paid,2025-09-01,2025-11-30,2026-03-19,резерв напред,Pa
 ACN,dividends_paid,2025-09-01,2025-11-30,2026-06-18,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2025-09-01,2026-02-28,2026-03-19,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2025-09-01,2026-05-31,2026-06-18,резерв напред,PaymentsOfOrdinaryDividends
+ACN,dividends_paid,2025-09-01,2026-08-31,2026-10-16,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2025-12-01,2026-02-28,2026-03-19,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2025-12-01,2026-02-28,2026-06-18,резерв напред,PaymentsOfOrdinaryDividends
 ACN,dividends_paid,2026-03-01,2026-05-31,2026-06-18,резерв напред,PaymentsOfOrdinaryDividends
@@ -125,11 +132,13 @@ ADP,gross_profit,2024-10-01,2024-12-31,2026-01-29,Р4-6,Revenues-CostOfGoodsAndS
 ADP,gross_profit,2025-01-01,2025-03-31,2025-05-01,Р4-6,Revenues-CostOfGoodsAndServicesSold
 ADP,gross_profit,2025-01-01,2025-03-31,2026-04-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
 ADP,gross_profit,2025-07-01,2025-09-30,2025-10-31,Р4-6,Revenues-CostOfGoodsAndServicesSold
+ADP,gross_profit,2025-07-01,2025-09-30,2026-10-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
 ADP,gross_profit,2025-07-01,2025-12-31,2026-01-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 ADP,gross_profit,2025-07-01,2026-03-31,2026-04-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
 ADP,gross_profit,2025-07-01,2026-06-30,2026-08-05,Р4-6,Revenues-CostOfGoodsAndServicesSold
 ADP,gross_profit,2025-10-01,2025-12-31,2026-01-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 ADP,gross_profit,2026-01-01,2026-03-31,2026-04-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
+ADP,gross_profit,2026-07-01,2026-09-30,2026-10-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
 ADSK,dividends_paid,2025-02-01,2026-01-31,2026-03-03,Р4-4,DividendsCommonStockCash
 AFL,net_income,2007-01-01,2007-12-31,2010-02-26,Р4-2 начало,NetIncomeLossAvailableToCommonStockholdersBasic
 AFL,net_income,2008-01-01,2008-06-30,2009-08-07,Р4-2 начало,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -374,13 +383,17 @@ AMZN,gross_profit,2025-01-01,2025-03-31,2026-04-30,Р4-6,Revenues-CostOfGoodsAnd
 AMZN,gross_profit,2025-01-01,2025-06-30,2025-08-01,Р4-6,Revenues-CostOfGoodsAndServicesSold
 AMZN,gross_profit,2025-01-01,2025-06-30,2026-07-31,Р4-6,Revenues-CostOfGoodsAndServicesSold
 AMZN,gross_profit,2025-01-01,2025-09-30,2025-10-31,Р4-6,Revenues-CostOfGoodsAndServicesSold
+AMZN,gross_profit,2025-01-01,2025-09-30,2026-10-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
 AMZN,gross_profit,2025-01-01,2025-12-31,2026-02-06,Р4-6,Revenues-CostOfGoodsAndServicesSold
 AMZN,gross_profit,2025-04-01,2025-06-30,2025-08-01,Р4-6,Revenues-CostOfGoodsAndServicesSold
 AMZN,gross_profit,2025-04-01,2025-06-30,2026-07-31,Р4-6,Revenues-CostOfGoodsAndServicesSold
 AMZN,gross_profit,2025-07-01,2025-09-30,2025-10-31,Р4-6,Revenues-CostOfGoodsAndServicesSold
+AMZN,gross_profit,2025-07-01,2025-09-30,2026-10-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
 AMZN,gross_profit,2026-01-01,2026-03-31,2026-04-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
 AMZN,gross_profit,2026-01-01,2026-06-30,2026-07-31,Р4-6,Revenues-CostOfGoodsAndServicesSold
+AMZN,gross_profit,2026-01-01,2026-09-30,2026-10-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
 AMZN,gross_profit,2026-04-01,2026-06-30,2026-07-31,Р4-6,Revenues-CostOfGoodsAndServicesSold
+AMZN,gross_profit,2026-07-01,2026-09-30,2026-10-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
 APH,net_income,2011-10-01,2011-12-31,2012-02-24,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 APH,net_income,2011-10-01,2011-12-31,2013-02-22,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 APH,net_income,2012-10-01,2012-12-31,2013-02-22,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -665,9 +678,11 @@ BAC,dividends_paid,2025-01-01,2025-03-31,2026-05-01,резерв напред,Pa
 BAC,dividends_paid,2025-01-01,2025-06-30,2025-07-31,резерв напред,PaymentsOfOrdinaryDividends
 BAC,dividends_paid,2025-01-01,2025-06-30,2026-07-31,резерв напред,PaymentsOfOrdinaryDividends
 BAC,dividends_paid,2025-01-01,2025-09-30,2025-10-31,резерв напред,PaymentsOfOrdinaryDividends
+BAC,dividends_paid,2025-01-01,2025-09-30,2026-10-30,резерв напред,PaymentsOfOrdinaryDividends
 BAC,dividends_paid,2025-01-01,2025-12-31,2026-02-25,резерв напред,PaymentsOfOrdinaryDividends
 BAC,dividends_paid,2026-01-01,2026-03-31,2026-05-01,резерв напред,PaymentsOfOrdinaryDividends
 BAC,dividends_paid,2026-01-01,2026-06-30,2026-07-31,резерв напред,PaymentsOfOrdinaryDividends
+BAC,dividends_paid,2026-01-01,2026-09-30,2026-10-30,резерв напред,PaymentsOfOrdinaryDividends
 BALL,net_income,2010-09-27,2010-12-31,2012-02-22,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 BALL,net_income,2011-10-03,2011-12-31,2012-02-22,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 BALL,net_income,2011-10-03,2011-12-31,2013-02-22,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -744,11 +759,19 @@ BIIB,gross_profit,2024-07-01,2024-09-30,2025-10-30,Р4-6,Revenues-CostOfGoodsAnd
 BIIB,gross_profit,2025-01-01,2025-03-31,2025-05-01,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BIIB,gross_profit,2025-01-01,2025-03-31,2026-04-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BIIB,gross_profit,2025-01-01,2025-06-30,2025-07-31,Р4-6,Revenues-CostOfGoodsAndServicesSold
+BIIB,gross_profit,2025-01-01,2025-06-30,2026-07-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BIIB,gross_profit,2025-01-01,2025-09-30,2025-10-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
+BIIB,gross_profit,2025-01-01,2025-09-30,2026-10-28,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BIIB,gross_profit,2025-01-01,2025-12-31,2026-02-06,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BIIB,gross_profit,2025-04-01,2025-06-30,2025-07-31,Р4-6,Revenues-CostOfGoodsAndServicesSold
+BIIB,gross_profit,2025-04-01,2025-06-30,2026-07-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BIIB,gross_profit,2025-07-01,2025-09-30,2025-10-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
+BIIB,gross_profit,2025-07-01,2025-09-30,2026-10-28,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BIIB,gross_profit,2026-01-01,2026-03-31,2026-04-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
+BIIB,gross_profit,2026-01-01,2026-06-30,2026-07-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
+BIIB,gross_profit,2026-01-01,2026-09-30,2026-10-28,Р4-6,Revenues-CostOfGoodsAndServicesSold
+BIIB,gross_profit,2026-04-01,2026-06-30,2026-07-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
+BIIB,gross_profit,2026-07-01,2026-09-30,2026-10-28,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BKNG,net_income,2016-01-01,2016-03-31,2016-05-04,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
 BKNG,net_income,2016-01-01,2016-03-31,2017-02-27,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
 BKNG,net_income,2016-01-01,2016-03-31,2017-05-09,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -898,19 +921,27 @@ BKNG,net_income,2025-01-01,2025-03-31,2026-04-28,резерв напред,NetIn
 BKNG,net_income,2025-01-01,2025-06-30,2025-07-29,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
 BKNG,net_income,2025-01-01,2025-06-30,2026-08-04,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
 BKNG,net_income,2025-01-01,2025-09-30,2025-10-28,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
+BKNG,net_income,2025-01-01,2025-09-30,2026-11-03,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
 BKNG,net_income,2025-01-01,2025-12-31,2026-02-18,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
 BKNG,net_income,2025-04-01,2025-06-30,2025-07-29,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
 BKNG,net_income,2025-04-01,2025-06-30,2026-08-04,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
 BKNG,net_income,2025-07-01,2025-09-30,2025-10-28,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
+BKNG,net_income,2025-07-01,2025-09-30,2026-11-03,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
 BKNG,net_income,2026-01-01,2026-03-31,2026-04-28,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
 BKNG,net_income,2026-01-01,2026-06-30,2026-08-04,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
+BKNG,net_income,2026-01-01,2026-09-30,2026-11-03,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
 BKNG,net_income,2026-04-01,2026-06-30,2026-08-04,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
+BKNG,net_income,2026-07-01,2026-09-30,2026-11-03,резерв напред,NetIncomeLossAvailableToCommonStockholdersBasic
 BLK,dividends_paid,2025-01-01,2025-09-30,2025-11-05,Р4-4,DividendsCash
+BLK,dividends_paid,2025-01-01,2025-09-30,2026-11-04,Р4-4,DividendsCash
 BLK,dividends_paid,2025-01-01,2025-12-31,2026-02-25,Р4-4,DividendsCash
 BLK,dividends_paid,2025-07-01,2025-09-30,2025-11-05,Р4-4,DividendsCash
+BLK,dividends_paid,2025-07-01,2025-09-30,2026-11-04,Р4-4,DividendsCash
 BLK,dividends_paid,2026-01-01,2026-03-31,2026-05-06,Р4-4,DividendsCash
 BLK,dividends_paid,2026-01-01,2026-06-30,2026-08-06,Р4-4,DividendsCash
+BLK,dividends_paid,2026-01-01,2026-09-30,2026-11-04,Р4-4,DividendsCash
 BLK,dividends_paid,2026-04-01,2026-06-30,2026-08-06,Р4-4,DividendsCash
+BLK,dividends_paid,2026-07-01,2026-09-30,2026-11-04,Р4-4,DividendsCash
 BMY,gross_profit,2021-01-01,2021-03-31,2021-04-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BMY,gross_profit,2021-01-01,2021-03-31,2022-04-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BMY,gross_profit,2021-01-01,2021-06-30,2021-07-28,Р4-6,Revenues-CostOfGoodsAndServicesSold
@@ -967,13 +998,17 @@ BMY,gross_profit,2025-01-01,2025-03-31,2026-04-30,Р4-6,Revenues-CostOfGoodsAndS
 BMY,gross_profit,2025-01-01,2025-06-30,2025-07-31,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BMY,gross_profit,2025-01-01,2025-06-30,2026-07-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BMY,gross_profit,2025-01-01,2025-09-30,2025-10-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
+BMY,gross_profit,2025-01-01,2025-09-30,2026-10-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BMY,gross_profit,2025-01-01,2025-12-31,2026-02-11,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BMY,gross_profit,2025-04-01,2025-06-30,2025-07-31,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BMY,gross_profit,2025-04-01,2025-06-30,2026-07-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BMY,gross_profit,2025-07-01,2025-09-30,2025-10-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
+BMY,gross_profit,2025-07-01,2025-09-30,2026-10-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BMY,gross_profit,2026-01-01,2026-03-31,2026-04-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BMY,gross_profit,2026-01-01,2026-06-30,2026-07-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
+BMY,gross_profit,2026-01-01,2026-09-30,2026-10-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BMY,gross_profit,2026-04-01,2026-06-30,2026-07-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
+BMY,gross_profit,2026-07-01,2026-09-30,2026-10-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BR,gross_profit,2021-07-01,2021-09-30,2021-11-03,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BR,gross_profit,2021-07-01,2021-09-30,2022-11-02,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BR,gross_profit,2021-07-01,2021-12-31,2022-02-01,Р4-6,Revenues-CostOfGoodsAndServicesSold
@@ -1026,11 +1061,13 @@ BR,gross_profit,2024-10-01,2024-12-31,2026-02-03,Р4-6,Revenues-CostOfGoodsAndSe
 BR,gross_profit,2025-01-01,2025-03-31,2025-05-01,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BR,gross_profit,2025-01-01,2025-03-31,2026-04-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BR,gross_profit,2025-07-01,2025-09-30,2025-11-04,Р4-6,Revenues-CostOfGoodsAndServicesSold
+BR,gross_profit,2025-07-01,2025-09-30,2026-11-03,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BR,gross_profit,2025-07-01,2025-12-31,2026-02-03,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BR,gross_profit,2025-07-01,2026-03-31,2026-04-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BR,gross_profit,2025-07-01,2026-06-30,2026-08-04,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BR,gross_profit,2025-10-01,2025-12-31,2026-02-03,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BR,gross_profit,2026-01-01,2026-03-31,2026-04-30,Р4-6,Revenues-CostOfGoodsAndServicesSold
+BR,gross_profit,2026-07-01,2026-09-30,2026-11-03,Р4-6,Revenues-CostOfGoodsAndServicesSold
 BXP,net_income,2022-10-01,2022-12-31,2023-02-27,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 CARR,net_income,2019-10-01,2019-12-31,2021-02-09,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 CARR,net_income,2020-10-01,2020-12-31,2021-02-09,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -1292,9 +1329,11 @@ CL,dividends_paid,2025-01-01,2025-03-31,2026-05-01,Р4-1,PaymentsOfOrdinaryDivid
 CL,dividends_paid,2025-01-01,2025-06-30,2025-08-01,Р4-1,PaymentsOfOrdinaryDividends
 CL,dividends_paid,2025-01-01,2025-06-30,2026-07-31,Р4-1,PaymentsOfOrdinaryDividends
 CL,dividends_paid,2025-01-01,2025-09-30,2025-10-31,Р4-1,PaymentsOfOrdinaryDividends
+CL,dividends_paid,2025-01-01,2025-09-30,2026-10-30,Р4-1,PaymentsOfOrdinaryDividends
 CL,dividends_paid,2025-01-01,2025-12-31,2026-02-23,Р4-1,PaymentsOfOrdinaryDividends
 CL,dividends_paid,2026-01-01,2026-03-31,2026-05-01,Р4-1,PaymentsOfOrdinaryDividends
 CL,dividends_paid,2026-01-01,2026-06-30,2026-07-31,Р4-1,PaymentsOfOrdinaryDividends
+CL,dividends_paid,2026-01-01,2026-09-30,2026-10-30,Р4-1,PaymentsOfOrdinaryDividends
 CMI,net_income,2015-09-28,2015-12-31,2017-02-13,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 CMI,net_income,2016-10-03,2016-12-31,2017-02-13,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 CMI,net_income,2016-10-03,2016-12-31,2018-02-14,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -1333,13 +1372,17 @@ CRH,dividends_paid,2025-01-01,2025-03-31,2026-04-30,Р4-3,DPSxWASO
 CRH,dividends_paid,2025-01-01,2025-06-30,2025-08-06,Р4-3,DPSxWASO
 CRH,dividends_paid,2025-01-01,2025-06-30,2026-07-30,Р4-3,DPSxWASO
 CRH,dividends_paid,2025-01-01,2025-09-30,2025-11-05,Р4-3,DPSxWASO
+CRH,dividends_paid,2025-01-01,2025-09-30,2026-10-29,Р4-3,DPSxWASO
 CRH,dividends_paid,2025-01-01,2025-12-31,2026-02-18,Р4-3,DPSxWASO
 CRH,dividends_paid,2025-04-01,2025-06-30,2025-08-06,Р4-3,DPSxWASO
 CRH,dividends_paid,2025-04-01,2025-06-30,2026-07-30,Р4-3,DPSxWASO
 CRH,dividends_paid,2025-07-01,2025-09-30,2025-11-05,Р4-3,DPSxWASO
+CRH,dividends_paid,2025-07-01,2025-09-30,2026-10-29,Р4-3,DPSxWASO
 CRH,dividends_paid,2026-01-01,2026-03-31,2026-04-30,Р4-3,DPSxWASO
 CRH,dividends_paid,2026-01-01,2026-06-30,2026-07-30,Р4-3,DPSxWASO
+CRH,dividends_paid,2026-01-01,2026-09-30,2026-10-29,Р4-3,DPSxWASO
 CRH,dividends_paid,2026-04-01,2026-06-30,2026-07-30,Р4-3,DPSxWASO
+CRH,dividends_paid,2026-07-01,2026-09-30,2026-10-29,Р4-3,DPSxWASO
 CRL,net_income,2013-09-29,2013-12-28,2015-02-17,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 CRL,net_income,2014-09-28,2014-12-27,2015-02-17,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 CRL,net_income,2014-09-28,2014-12-27,2016-02-12,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -1515,16 +1558,22 @@ DGX,gross_profit,2025-01-01,2025-03-31,2026-04-22,Р4-6,Revenues-CostOfRevenue
 DGX,gross_profit,2025-01-01,2025-06-30,2025-07-23,Р4-6,Revenues-CostOfRevenue
 DGX,gross_profit,2025-01-01,2025-06-30,2026-07-23,Р4-6,Revenues-CostOfRevenue
 DGX,gross_profit,2025-01-01,2025-09-30,2025-10-21,Р4-6,Revenues-CostOfRevenue
+DGX,gross_profit,2025-01-01,2025-09-30,2026-10-23,Р4-6,Revenues-CostOfRevenue
 DGX,gross_profit,2025-01-01,2025-12-31,2026-02-26,Р4-6,Revenues-CostOfRevenue
 DGX,gross_profit,2025-04-01,2025-06-30,2025-07-23,Р4-6,Revenues-CostOfRevenue
 DGX,gross_profit,2025-04-01,2025-06-30,2026-07-23,Р4-6,Revenues-CostOfRevenue
 DGX,gross_profit,2025-07-01,2025-09-30,2025-10-21,Р4-6,Revenues-CostOfRevenue
+DGX,gross_profit,2025-07-01,2025-09-30,2026-10-23,Р4-6,Revenues-CostOfRevenue
 DGX,gross_profit,2026-01-01,2026-03-31,2026-04-22,Р4-6,Revenues-CostOfRevenue
 DGX,gross_profit,2026-01-01,2026-06-30,2026-07-23,Р4-6,Revenues-CostOfRevenue
+DGX,gross_profit,2026-01-01,2026-09-30,2026-10-23,Р4-6,Revenues-CostOfRevenue
 DGX,gross_profit,2026-04-01,2026-06-30,2026-07-23,Р4-6,Revenues-CostOfRevenue
+DGX,gross_profit,2026-07-01,2026-09-30,2026-10-23,Р4-6,Revenues-CostOfRevenue
 DLTR,gross_profit,2026-02-01,2026-05-02,2026-05-28,Р4-6,Revenues-CostOfGoodsAndServicesSold
 DLTR,gross_profit,2026-02-01,2026-08-01,2026-08-27,Р4-6,Revenues-CostOfGoodsAndServicesSold
+DLTR,gross_profit,2026-02-01,2026-10-31,2026-11-24,Р4-6,Revenues-CostOfGoodsAndServicesSold
 DLTR,gross_profit,2026-05-03,2026-08-01,2026-08-27,Р4-6,Revenues-CostOfGoodsAndServicesSold
+DLTR,gross_profit,2026-08-02,2026-10-31,2026-11-24,Р4-6,Revenues-CostOfGoodsAndServicesSold
 DOW,gross_profit,2021-01-01,2021-03-31,2021-04-23,Р4-6,Revenues-CostOfGoodsAndServicesSold
 DOW,gross_profit,2021-01-01,2021-03-31,2022-04-22,Р4-6,Revenues-CostOfGoodsAndServicesSold
 DOW,gross_profit,2021-01-01,2021-06-30,2021-07-23,Р4-6,Revenues-CostOfGoodsAndServicesSold
@@ -1580,10 +1629,14 @@ DOW,gross_profit,2025-01-01,2025-03-31,2025-04-25,Р4-6,Revenues-CostOfGoodsAndS
 DOW,gross_profit,2025-01-01,2025-03-31,2026-04-24,Р4-6,Revenues-CostOfGoodsAndServicesSold
 DOW,gross_profit,2025-01-01,2025-06-30,2025-07-25,Р4-6,Revenues-CostOfGoodsAndServicesSold
 DOW,gross_profit,2025-01-01,2025-09-30,2025-10-24,Р4-6,Revenues-CostOfGoodsAndServicesSold
+DOW,gross_profit,2025-01-01,2025-09-30,2026-10-23,Р4-6,Revenues-CostOfGoodsAndServicesSold
 DOW,gross_profit,2025-01-01,2025-12-31,2026-02-03,Р4-6,Revenues-CostOfGoodsAndServicesSold
 DOW,gross_profit,2025-04-01,2025-06-30,2025-07-25,Р4-6,Revenues-CostOfGoodsAndServicesSold
 DOW,gross_profit,2025-07-01,2025-09-30,2025-10-24,Р4-6,Revenues-CostOfGoodsAndServicesSold
+DOW,gross_profit,2025-07-01,2025-09-30,2026-10-23,Р4-6,Revenues-CostOfGoodsAndServicesSold
 DOW,gross_profit,2026-01-01,2026-03-31,2026-04-24,Р4-6,Revenues-CostOfGoodsAndServicesSold
+DOW,gross_profit,2026-01-01,2026-09-30,2026-10-23,Р4-6,Revenues-CostOfGoodsAndServicesSold
+DOW,gross_profit,2026-07-01,2026-09-30,2026-10-23,Р4-6,Revenues-CostOfGoodsAndServicesSold
 DUK,dividends_paid,2019-01-01,2019-06-30,2019-08-06,Р4-2 по средата,PaymentsOfOrdinaryDividends
 DUK,dividends_paid,2019-01-01,2019-06-30,2020-08-10,Р4-2 по средата,PaymentsOfOrdinaryDividends
 DUK,dividends_paid,2019-01-01,2019-09-30,2019-11-08,Р4-2 по средата,PaymentsOfOrdinaryDividends
@@ -1806,8 +1859,10 @@ DVN,dividends_paid,2025-01-01,2025-12-31,2026-02-18,Р4-2 по средата,Pa
 DVN,dividends_paid,2025-04-01,2025-06-30,2025-08-06,Р4-2 по средата,PaymentsOfOrdinaryDividends
 DVN,dividends_paid,2025-04-01,2025-06-30,2026-08-05,Р4-2 по средата,PaymentsOfOrdinaryDividends
 DVN,dividends_paid,2025-07-01,2025-09-30,2025-11-06,Р4-2 по средата,PaymentsOfOrdinaryDividends
+DVN,dividends_paid,2025-07-01,2025-09-30,2026-11-06,Р4-2 по средата,PaymentsOfOrdinaryDividends
 DVN,dividends_paid,2026-01-01,2026-03-31,2026-05-06,Р4-2 по средата,PaymentsOfOrdinaryDividends
-DVN,dividends_paid,2026-04-01,2026-06-30,2026-08-05,резерв напред,PaymentsOfOrdinaryDividends
+DVN,dividends_paid,2026-04-01,2026-06-30,2026-08-05,Р4-2 по средата,PaymentsOfOrdinaryDividends
+DVN,dividends_paid,2026-07-01,2026-09-30,2026-11-06,резерв напред,PaymentsOfOrdinaryDividends
 ECHO,net_income,2010-10-01,2010-12-31,2012-03-07,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 ECHO,net_income,2011-10-01,2011-12-31,2012-03-07,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 ECHO,net_income,2011-10-01,2011-12-31,2013-02-20,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -1819,11 +1874,6 @@ EIX,net_income,2018-10-01,2018-12-31,2019-02-28,Р4-2 по средата,NetInc
 EIX,net_income,2018-10-01,2018-12-31,2020-02-27,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 EIX,net_income,2019-10-01,2019-12-31,2020-02-27,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 EIX,net_income,2019-10-01,2019-12-31,2021-02-25,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
-EMR,gross_profit,2025-10-01,2025-12-31,2026-02-03,Р4-6,Revenues-CostOfGoodsAndServicesSold
-EMR,gross_profit,2025-10-01,2026-03-31,2026-05-05,Р4-6,Revenues-CostOfGoodsAndServicesSold
-EMR,gross_profit,2025-10-01,2026-06-30,2026-08-04,Р4-6,Revenues-CostOfGoodsAndServicesSold
-EMR,gross_profit,2026-01-01,2026-03-31,2026-05-05,Р4-6,Revenues-CostOfGoodsAndServicesSold
-EMR,gross_profit,2026-04-01,2026-06-30,2026-08-04,Р4-6,Revenues-CostOfGoodsAndServicesSold
 EOG,dividends_paid,2007-01-01,2007-12-31,2010-02-25,Р4-1,PaymentsOfOrdinaryDividends
 EOG,dividends_paid,2008-01-01,2008-12-31,2010-02-25,Р4-1,PaymentsOfOrdinaryDividends
 EOG,dividends_paid,2008-01-01,2008-12-31,2011-02-24,Р4-1,PaymentsOfOrdinaryDividends
@@ -1970,9 +2020,11 @@ EOG,dividends_paid,2025-01-01,2025-03-31,2026-05-05,Р4-1,PaymentsOfOrdinaryDivi
 EOG,dividends_paid,2025-01-01,2025-06-30,2025-08-07,Р4-1,PaymentsOfOrdinaryDividends
 EOG,dividends_paid,2025-01-01,2025-06-30,2026-08-04,Р4-1,PaymentsOfOrdinaryDividends
 EOG,dividends_paid,2025-01-01,2025-09-30,2025-11-06,Р4-1,PaymentsOfOrdinaryDividends
+EOG,dividends_paid,2025-01-01,2025-09-30,2026-11-05,Р4-1,PaymentsOfOrdinaryDividends
 EOG,dividends_paid,2025-01-01,2025-12-31,2026-02-24,Р4-1,PaymentsOfOrdinaryDividends
 EOG,dividends_paid,2026-01-01,2026-03-31,2026-05-05,Р4-1,PaymentsOfOrdinaryDividends
 EOG,dividends_paid,2026-01-01,2026-06-30,2026-08-04,Р4-1,PaymentsOfOrdinaryDividends
+EOG,dividends_paid,2026-01-01,2026-09-30,2026-11-05,Р4-1,PaymentsOfOrdinaryDividends
 EQIX,gross_profit,2021-01-01,2021-03-31,2021-04-30,Р4-6,Revenues-CostOfRevenue
 EQIX,gross_profit,2021-01-01,2021-03-31,2022-04-29,Р4-6,Revenues-CostOfRevenue
 EQIX,gross_profit,2021-01-01,2021-06-30,2021-07-30,Р4-6,Revenues-CostOfRevenue
@@ -2029,13 +2081,17 @@ EQIX,gross_profit,2025-01-01,2025-03-31,2026-04-29,Р4-6,Revenues-CostOfRevenue
 EQIX,gross_profit,2025-01-01,2025-06-30,2025-07-30,Р4-6,Revenues-CostOfRevenue
 EQIX,gross_profit,2025-01-01,2025-06-30,2026-07-29,Р4-6,Revenues-CostOfRevenue
 EQIX,gross_profit,2025-01-01,2025-09-30,2025-10-29,Р4-6,Revenues-CostOfRevenue
+EQIX,gross_profit,2025-01-01,2025-09-30,2026-10-28,Р4-6,Revenues-CostOfRevenue
 EQIX,gross_profit,2025-01-01,2025-12-31,2026-02-11,Р4-6,Revenues-CostOfRevenue
 EQIX,gross_profit,2025-04-01,2025-06-30,2025-07-30,Р4-6,Revenues-CostOfRevenue
 EQIX,gross_profit,2025-04-01,2025-06-30,2026-07-29,Р4-6,Revenues-CostOfRevenue
 EQIX,gross_profit,2025-07-01,2025-09-30,2025-10-29,Р4-6,Revenues-CostOfRevenue
+EQIX,gross_profit,2025-07-01,2025-09-30,2026-10-28,Р4-6,Revenues-CostOfRevenue
 EQIX,gross_profit,2026-01-01,2026-03-31,2026-04-29,Р4-6,Revenues-CostOfRevenue
 EQIX,gross_profit,2026-01-01,2026-06-30,2026-07-29,Р4-6,Revenues-CostOfRevenue
+EQIX,gross_profit,2026-01-01,2026-09-30,2026-10-28,Р4-6,Revenues-CostOfRevenue
 EQIX,gross_profit,2026-04-01,2026-06-30,2026-07-29,Р4-6,Revenues-CostOfRevenue
+EQIX,gross_profit,2026-07-01,2026-09-30,2026-10-28,Р4-6,Revenues-CostOfRevenue
 EQT,net_income,2009-01-01,2009-12-31,2012-02-16,Р4-2 начало,NetIncomeLossAvailableToCommonStockholdersBasic
 EQT,net_income,2010-01-01,2010-03-31,2012-02-16,Р4-2 начало,NetIncomeLossAvailableToCommonStockholdersBasic
 EQT,net_income,2010-01-01,2010-09-30,2011-10-27,Р4-2 начало,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -2538,12 +2594,15 @@ EXPE,dividends_paid,2025-04-01,2025-06-30,2025-08-08,Р4-2 по средата,P
 EXPE,dividends_paid,2025-04-01,2025-06-30,2025-11-07,Р4-2 по средата,PaymentsOfOrdinaryDividends
 EXPE,dividends_paid,2025-04-01,2025-06-30,2026-02-13,Р4-2 по средата,PaymentsOfOrdinaryDividends
 EXPE,dividends_paid,2025-04-01,2025-06-30,2026-08-06,Р4-2 по средата,PaymentsOfOrdinaryDividends
+EXPE,dividends_paid,2025-04-01,2025-06-30,2026-11-05,Р4-2 по средата,PaymentsOfOrdinaryDividends
 EXPE,dividends_paid,2025-07-01,2025-09-30,2025-11-07,Р4-2 по средата,PaymentsOfOrdinaryDividends
 EXPE,dividends_paid,2025-07-01,2025-09-30,2026-02-13,Р4-2 по средата,PaymentsOfOrdinaryDividends
+EXPE,dividends_paid,2025-07-01,2025-09-30,2026-11-05,Р4-2 по средата,PaymentsOfOrdinaryDividends
 EXPE,dividends_paid,2025-10-01,2025-12-31,2026-02-13,Р4-2 по средата,PaymentsOfOrdinaryDividends
-EXPE,dividends_paid,2026-04-01,2026-06-30,2026-08-06,резерв напред,PaymentsOfOrdinaryDividends
+EXPE,dividends_paid,2026-07-01,2026-09-30,2026-11-05,резерв напред,PaymentsOfOrdinaryDividends
 F,net_income,2016-10-01,2016-12-31,2017-02-09,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 F,net_income,2016-10-01,2016-12-31,2018-02-08,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
+FANG,dividends_paid,2026-07-01,2026-09-30,2026-11-04,Р4-4,DividendsCommonStockCash
 FCX,net_income,2017-10-01,2017-12-31,2018-02-20,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 FCX,net_income,2017-10-01,2017-12-31,2019-02-15,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 FICO,gross_profit,2020-10-01,2020-12-31,2021-01-28,Р4-6,Revenues-CostOfRevenue
@@ -2593,6 +2652,7 @@ FICO,gross_profit,2023-10-01,2024-06-30,2024-07-31,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2023-10-01,2024-06-30,2025-07-30,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2023-10-01,2024-09-30,2024-11-06,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2023-10-01,2024-09-30,2025-11-07,Р4-6,Revenues-CostOfRevenue
+FICO,gross_profit,2023-10-01,2024-09-30,2026-11-06,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2024-01-01,2024-03-31,2024-04-25,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2024-01-01,2024-03-31,2025-04-29,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2024-04-01,2024-06-30,2024-07-31,Р4-6,Revenues-CostOfRevenue
@@ -2604,6 +2664,7 @@ FICO,gross_profit,2024-10-01,2025-03-31,2026-04-28,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2024-10-01,2025-06-30,2025-07-30,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2024-10-01,2025-06-30,2026-07-29,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2024-10-01,2025-09-30,2025-11-07,Р4-6,Revenues-CostOfRevenue
+FICO,gross_profit,2024-10-01,2025-09-30,2026-11-06,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2025-01-01,2025-03-31,2025-04-29,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2025-01-01,2025-03-31,2026-04-28,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2025-04-01,2025-06-30,2025-07-30,Р4-6,Revenues-CostOfRevenue
@@ -2611,6 +2672,7 @@ FICO,gross_profit,2025-04-01,2025-06-30,2026-07-29,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2025-10-01,2025-12-31,2026-01-28,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2025-10-01,2026-03-31,2026-04-28,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2025-10-01,2026-06-30,2026-07-29,Р4-6,Revenues-CostOfRevenue
+FICO,gross_profit,2025-10-01,2026-09-30,2026-11-06,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2026-01-01,2026-03-31,2026-04-28,Р4-6,Revenues-CostOfRevenue
 FICO,gross_profit,2026-04-01,2026-06-30,2026-07-29,Р4-6,Revenues-CostOfRevenue
 FIX,net_income,2010-01-01,2010-09-30,2011-11-07,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -2946,9 +3008,11 @@ GE,dividends_paid,2025-01-01,2025-03-31,2026-04-21,Р4-1,PaymentsOfOrdinaryDivid
 GE,dividends_paid,2025-01-01,2025-06-30,2025-07-21,Р4-1,PaymentsOfOrdinaryDividends
 GE,dividends_paid,2025-01-01,2025-06-30,2026-07-16,Р4-1,PaymentsOfOrdinaryDividends
 GE,dividends_paid,2025-01-01,2025-09-30,2025-10-21,Р4-1,PaymentsOfOrdinaryDividends
+GE,dividends_paid,2025-01-01,2025-09-30,2026-10-20,Р4-1,PaymentsOfOrdinaryDividends
 GE,dividends_paid,2025-01-01,2025-12-31,2026-01-29,Р4-1,PaymentsOfOrdinaryDividends
 GE,dividends_paid,2026-01-01,2026-03-31,2026-04-21,Р4-1,PaymentsOfOrdinaryDividends
 GE,dividends_paid,2026-01-01,2026-06-30,2026-07-16,Р4-1,PaymentsOfOrdinaryDividends
+GE,dividends_paid,2026-01-01,2026-09-30,2026-10-20,Р4-1,PaymentsOfOrdinaryDividends
 GLW,dividends_paid,2014-01-01,2014-06-30,2014-07-31,резерв напред,PaymentsOfOrdinaryDividends
 GLW,dividends_paid,2014-01-01,2014-06-30,2015-07-30,резерв напред,PaymentsOfOrdinaryDividends
 GLW,dividends_paid,2014-01-01,2014-09-30,2014-10-29,резерв напред,PaymentsOfOrdinaryDividends
@@ -3050,13 +3114,15 @@ GLW,dividends_paid,2025-01-01,2025-03-31,2026-05-01,резерв напред,Pa
 GLW,dividends_paid,2025-01-01,2025-06-30,2025-08-01,резерв напред,PaymentsOfOrdinaryDividends
 GLW,dividends_paid,2025-01-01,2025-06-30,2026-07-29,резерв напред,PaymentsOfOrdinaryDividends
 GLW,dividends_paid,2025-01-01,2025-09-30,2025-10-31,резерв напред,PaymentsOfOrdinaryDividends
+GLW,dividends_paid,2025-01-01,2025-09-30,2026-10-29,резерв напред,PaymentsOfOrdinaryDividends
 GLW,dividends_paid,2025-01-01,2025-12-31,2026-02-12,резерв напред,PaymentsOfOrdinaryDividends
 GLW,dividends_paid,2026-01-01,2026-03-31,2026-05-01,резерв напред,PaymentsOfOrdinaryDividends
 GLW,dividends_paid,2026-01-01,2026-06-30,2026-07-29,резерв напред,PaymentsOfOrdinaryDividends
-GOOG,dividends_paid,2026-01-01,2026-06-30,2026-07-23,Р4-3,DPSxWASO
-GOOG,dividends_paid,2026-04-01,2026-06-30,2026-07-23,Р4-3,DPSxWASO
-GOOGL,dividends_paid,2026-01-01,2026-06-30,2026-07-23,Р4-3,DPSxWASO
-GOOGL,dividends_paid,2026-04-01,2026-06-30,2026-07-23,Р4-3,DPSxWASO
+GLW,dividends_paid,2026-01-01,2026-09-30,2026-10-29,резерв напред,PaymentsOfOrdinaryDividends
+GOOG,dividends_paid,2026-01-01,2026-06-30,2026-07-23,резерв напред,PaymentsOfOrdinaryDividends
+GOOG,dividends_paid,2026-01-01,2026-09-30,2026-10-29,резерв напред,PaymentsOfOrdinaryDividends
+GOOGL,dividends_paid,2026-01-01,2026-06-30,2026-07-23,резерв напред,PaymentsOfOrdinaryDividends
+GOOGL,dividends_paid,2026-01-01,2026-09-30,2026-10-29,резерв напред,PaymentsOfOrdinaryDividends
 HPQ,net_income,2011-11-01,2012-01-31,2012-03-12,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 HPQ,net_income,2011-11-01,2012-01-31,2013-03-11,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 HPQ,net_income,2011-11-01,2012-04-30,2012-06-08,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -3160,8 +3226,12 @@ HUBB,dividends_paid,2025-01-01,2025-03-31,2025-05-02,Р4-3,DPSxWASO
 HUBB,dividends_paid,2025-01-01,2025-03-31,2026-05-01,Р4-3,DPSxWASO
 HUBB,dividends_paid,2025-01-01,2025-12-31,2026-02-12,Р4-3,DPSxWASO
 HUBB,dividends_paid,2025-04-01,2025-06-30,2025-07-30,Р4-3,DPSxWASO
+HUBB,dividends_paid,2025-04-01,2025-06-30,2026-07-29,Р4-3,DPSxWASO
 HUBB,dividends_paid,2025-07-01,2025-09-30,2025-10-29,Р4-3,DPSxWASO
+HUBB,dividends_paid,2025-07-01,2025-09-30,2026-10-28,Р4-3,DPSxWASO
 HUBB,dividends_paid,2026-01-01,2026-03-31,2026-05-01,Р4-3,DPSxWASO
+HUBB,dividends_paid,2026-04-01,2026-06-30,2026-07-29,Р4-3,DPSxWASO
+HUBB,dividends_paid,2026-07-01,2026-09-30,2026-10-28,Р4-3,DPSxWASO
 HWM,dividends_paid,2016-01-01,2016-09-30,2016-11-09,резерв напред,PaymentsOfOrdinaryDividends
 HWM,dividends_paid,2016-01-01,2016-09-30,2017-11-06,резерв напред,PaymentsOfOrdinaryDividends
 HWM,dividends_paid,2016-01-01,2016-12-31,2017-02-28,резерв напред,PaymentsOfOrdinaryDividends
@@ -3243,9 +3313,11 @@ HWM,dividends_paid,2025-01-01,2025-03-31,2026-05-07,резерв напред,Pa
 HWM,dividends_paid,2025-01-01,2025-06-30,2025-07-31,резерв напред,PaymentsOfOrdinaryDividends
 HWM,dividends_paid,2025-01-01,2025-06-30,2026-08-06,резерв напред,PaymentsOfOrdinaryDividends
 HWM,dividends_paid,2025-01-01,2025-09-30,2025-10-30,резерв напред,PaymentsOfOrdinaryDividends
+HWM,dividends_paid,2025-01-01,2025-09-30,2026-10-29,резерв напред,PaymentsOfOrdinaryDividends
 HWM,dividends_paid,2025-01-01,2025-12-31,2026-02-12,резерв напред,PaymentsOfOrdinaryDividends
 HWM,dividends_paid,2026-01-01,2026-03-31,2026-05-07,резерв напред,PaymentsOfOrdinaryDividends
 HWM,dividends_paid,2026-01-01,2026-06-30,2026-08-06,резерв напред,PaymentsOfOrdinaryDividends
+HWM,dividends_paid,2026-01-01,2026-09-30,2026-10-29,резерв напред,PaymentsOfOrdinaryDividends
 INCY,net_income,2009-01-01,2009-12-31,2012-02-22,Р4-2 начало,NetIncomeLossAvailableToCommonStockholdersBasic
 INCY,net_income,2010-01-01,2010-09-30,2011-10-27,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 INCY,net_income,2010-01-01,2010-12-31,2012-02-22,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -3644,13 +3716,17 @@ ITW,net_income,2025-01-01,2025-03-31,2026-05-07,идентичност,ProfitLos
 ITW,net_income,2025-01-01,2025-06-30,2025-08-01,идентичност,ProfitLoss
 ITW,net_income,2025-01-01,2025-06-30,2026-08-06,идентичност,ProfitLoss
 ITW,net_income,2025-01-01,2025-09-30,2025-10-24,идентичност,ProfitLoss
+ITW,net_income,2025-01-01,2025-09-30,2026-10-28,идентичност,ProfitLoss
 ITW,net_income,2025-01-01,2025-12-31,2026-02-13,идентичност,ProfitLoss
 ITW,net_income,2025-04-01,2025-06-30,2025-08-01,идентичност,ProfitLoss
 ITW,net_income,2025-04-01,2025-06-30,2026-08-06,идентичност,ProfitLoss
 ITW,net_income,2025-07-01,2025-09-30,2025-10-24,идентичност,ProfitLoss
+ITW,net_income,2025-07-01,2025-09-30,2026-10-28,идентичност,ProfitLoss
 ITW,net_income,2026-01-01,2026-03-31,2026-05-07,идентичност,ProfitLoss
 ITW,net_income,2026-01-01,2026-06-30,2026-08-06,идентичност,ProfitLoss
+ITW,net_income,2026-01-01,2026-09-30,2026-10-28,идентичност,ProfitLoss
 ITW,net_income,2026-04-01,2026-06-30,2026-08-06,идентичност,ProfitLoss
+ITW,net_income,2026-07-01,2026-09-30,2026-10-28,идентичност,ProfitLoss
 JNJ,dividends_paid,2007-01-01,2007-12-30,2010-03-01,Р4-1,PaymentsOfOrdinaryDividends
 JNJ,dividends_paid,2007-12-31,2008-06-29,2009-08-04,Р4-1,PaymentsOfOrdinaryDividends
 JNJ,dividends_paid,2007-12-31,2008-09-28,2009-11-04,Р4-1,PaymentsOfOrdinaryDividends
@@ -3803,9 +3879,11 @@ JNJ,dividends_paid,2024-12-30,2025-03-30,2026-04-22,Р4-1,PaymentsOfOrdinaryDivi
 JNJ,dividends_paid,2024-12-30,2025-06-29,2025-07-24,Р4-1,PaymentsOfOrdinaryDividends
 JNJ,dividends_paid,2024-12-30,2025-06-29,2026-07-23,Р4-1,PaymentsOfOrdinaryDividends
 JNJ,dividends_paid,2024-12-30,2025-09-28,2025-10-22,Р4-1,PaymentsOfOrdinaryDividends
+JNJ,dividends_paid,2024-12-30,2025-09-28,2026-10-21,Р4-1,PaymentsOfOrdinaryDividends
 JNJ,dividends_paid,2024-12-30,2025-12-28,2026-02-11,Р4-1,PaymentsOfOrdinaryDividends
 JNJ,dividends_paid,2025-12-29,2026-03-29,2026-04-22,Р4-1,PaymentsOfOrdinaryDividends
 JNJ,dividends_paid,2025-12-29,2026-06-28,2026-07-23,Р4-1,PaymentsOfOrdinaryDividends
+JNJ,dividends_paid,2025-12-29,2026-09-27,2026-10-21,Р4-1,PaymentsOfOrdinaryDividends
 KIM,dividends_paid,2025-01-01,2025-03-31,2025-05-02,Р4-2 по средата,PaymentsOfOrdinaryDividends
 KIM,dividends_paid,2025-01-01,2025-03-31,2026-04-30,Р4-2 по средата,PaymentsOfOrdinaryDividends
 KIM,dividends_paid,2025-01-01,2025-06-30,2025-08-01,Р4-2 по средата,PaymentsOfOrdinaryDividends
@@ -3865,11 +3943,13 @@ KLAC,gross_profit,2024-10-01,2024-12-31,2026-01-30,Р4-6,Revenues-CostOfRevenue
 KLAC,gross_profit,2025-01-01,2025-03-31,2025-05-01,Р4-6,Revenues-CostOfRevenue
 KLAC,gross_profit,2025-01-01,2025-03-31,2026-04-30,Р4-6,Revenues-CostOfRevenue
 KLAC,gross_profit,2025-07-01,2025-09-30,2025-10-31,Р4-6,Revenues-CostOfRevenue
+KLAC,gross_profit,2025-07-01,2025-09-30,2026-10-29,Р4-6,Revenues-CostOfRevenue
 KLAC,gross_profit,2025-07-01,2025-12-31,2026-01-30,Р4-6,Revenues-CostOfRevenue
 KLAC,gross_profit,2025-07-01,2026-03-31,2026-04-30,Р4-6,Revenues-CostOfRevenue
 KLAC,gross_profit,2025-07-01,2026-06-30,2026-08-06,Р4-6,Revenues-CostOfRevenue
 KLAC,gross_profit,2025-10-01,2025-12-31,2026-01-30,Р4-6,Revenues-CostOfRevenue
 KLAC,gross_profit,2026-01-01,2026-03-31,2026-04-30,Р4-6,Revenues-CostOfRevenue
+KLAC,gross_profit,2026-07-01,2026-09-30,2026-10-29,Р4-6,Revenues-CostOfRevenue
 LDOS,dividends_paid,2016-01-02,2016-09-30,2016-11-04,резерв напред,PaymentsOfOrdinaryDividends
 LDOS,dividends_paid,2016-01-02,2016-09-30,2017-11-03,резерв напред,PaymentsOfOrdinaryDividends
 LDOS,dividends_paid,2016-01-02,2016-12-30,2017-02-24,резерв напред,PaymentsOfOrdinaryDividends
@@ -3951,9 +4031,11 @@ LDOS,dividends_paid,2025-01-04,2025-04-04,2026-05-05,резерв напред,P
 LDOS,dividends_paid,2025-01-04,2025-07-04,2025-08-05,резерв напред,PaymentsOfOrdinaryDividends
 LDOS,dividends_paid,2025-01-04,2025-07-04,2026-08-04,резерв напред,PaymentsOfOrdinaryDividends
 LDOS,dividends_paid,2025-01-04,2025-10-03,2025-11-04,резерв напред,PaymentsOfOrdinaryDividends
+LDOS,dividends_paid,2025-01-04,2025-10-03,2026-11-03,резерв напред,PaymentsOfOrdinaryDividends
 LDOS,dividends_paid,2025-01-04,2026-01-02,2026-02-17,резерв напред,PaymentsOfOrdinaryDividends
 LDOS,dividends_paid,2026-01-03,2026-04-03,2026-05-05,резерв напред,PaymentsOfOrdinaryDividends
 LDOS,dividends_paid,2026-01-03,2026-07-03,2026-08-04,резерв напред,PaymentsOfOrdinaryDividends
+LDOS,dividends_paid,2026-01-03,2026-10-02,2026-11-03,резерв напред,PaymentsOfOrdinaryDividends
 LH,dividends_paid,2020-01-01,2020-12-31,2023-02-28,Р4-2 начало,PaymentsOfOrdinaryDividends
 LITE,net_income,2012-07-01,2013-06-29,2015-09-25,Р4-2 начало,NetIncomeLossAvailableToCommonStockholdersBasic
 LITE,net_income,2012-07-01,2013-06-29,2015-09-29,Р4-2 начало,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -4027,13 +4109,17 @@ LYB,gross_profit,2025-01-01,2025-03-31,2026-05-01,Р4-6,Revenues-CostOfRevenue
 LYB,gross_profit,2025-01-01,2025-06-30,2025-08-01,Р4-6,Revenues-CostOfRevenue
 LYB,gross_profit,2025-01-01,2025-06-30,2026-07-31,Р4-6,Revenues-CostOfRevenue
 LYB,gross_profit,2025-01-01,2025-09-30,2025-10-31,Р4-6,Revenues-CostOfRevenue
+LYB,gross_profit,2025-01-01,2025-09-30,2026-10-30,Р4-6,Revenues-CostOfRevenue
 LYB,gross_profit,2025-01-01,2025-12-31,2026-02-20,Р4-6,Revenues-CostOfRevenue
 LYB,gross_profit,2025-04-01,2025-06-30,2025-08-01,Р4-6,Revenues-CostOfRevenue
 LYB,gross_profit,2025-04-01,2025-06-30,2026-07-31,Р4-6,Revenues-CostOfRevenue
 LYB,gross_profit,2025-07-01,2025-09-30,2025-10-31,Р4-6,Revenues-CostOfRevenue
+LYB,gross_profit,2025-07-01,2025-09-30,2026-10-30,Р4-6,Revenues-CostOfRevenue
 LYB,gross_profit,2026-01-01,2026-03-31,2026-05-01,Р4-6,Revenues-CostOfRevenue
 LYB,gross_profit,2026-01-01,2026-06-30,2026-07-31,Р4-6,Revenues-CostOfRevenue
+LYB,gross_profit,2026-01-01,2026-09-30,2026-10-30,Р4-6,Revenues-CostOfRevenue
 LYB,gross_profit,2026-04-01,2026-06-30,2026-07-31,Р4-6,Revenues-CostOfRevenue
+LYB,gross_profit,2026-07-01,2026-09-30,2026-10-30,Р4-6,Revenues-CostOfRevenue
 MCHP,dividends_paid,2007-04-01,2008-03-31,2010-06-02,Р4-2 начало,PaymentsOfOrdinaryDividends
 MCHP,dividends_paid,2008-04-01,2008-06-30,2009-08-10,Р4-2 начало,PaymentsOfOrdinaryDividends
 MCHP,dividends_paid,2008-04-01,2008-09-30,2009-11-06,Р4-2 начало,PaymentsOfOrdinaryDividends
@@ -4367,15 +4453,20 @@ NFLX,gross_profit,2025-01-01,2025-03-31,2026-04-17,Р4-6,Revenues-CostOfRevenue
 NFLX,gross_profit,2025-01-01,2025-06-30,2025-07-18,Р4-6,Revenues-CostOfRevenue
 NFLX,gross_profit,2025-01-01,2025-06-30,2026-07-17,Р4-6,Revenues-CostOfRevenue
 NFLX,gross_profit,2025-01-01,2025-09-30,2025-10-22,Р4-6,Revenues-CostOfRevenue
+NFLX,gross_profit,2025-01-01,2025-09-30,2026-10-21,Р4-6,Revenues-CostOfRevenue
 NFLX,gross_profit,2025-01-01,2025-12-31,2026-01-23,Р4-6,Revenues-CostOfRevenue
 NFLX,gross_profit,2025-04-01,2025-06-30,2025-07-18,Р4-6,Revenues-CostOfRevenue
 NFLX,gross_profit,2025-04-01,2025-06-30,2026-07-17,Р4-6,Revenues-CostOfRevenue
 NFLX,gross_profit,2025-07-01,2025-09-30,2025-10-22,Р4-6,Revenues-CostOfRevenue
+NFLX,gross_profit,2025-07-01,2025-09-30,2026-10-21,Р4-6,Revenues-CostOfRevenue
 NFLX,gross_profit,2026-01-01,2026-03-31,2026-04-17,Р4-6,Revenues-CostOfRevenue
 NFLX,gross_profit,2026-01-01,2026-06-30,2026-07-17,Р4-6,Revenues-CostOfRevenue
+NFLX,gross_profit,2026-01-01,2026-09-30,2026-10-21,Р4-6,Revenues-CostOfRevenue
 NFLX,gross_profit,2026-04-01,2026-06-30,2026-07-17,Р4-6,Revenues-CostOfRevenue
+NFLX,gross_profit,2026-07-01,2026-09-30,2026-10-21,Р4-6,Revenues-CostOfRevenue
 NRG,dividends_paid,2026-01-01,2026-03-31,2026-05-06,резерв напред,PaymentsOfOrdinaryDividends
 NRG,dividends_paid,2026-01-01,2026-06-30,2026-08-04,резерв напред,PaymentsOfOrdinaryDividends
+NRG,dividends_paid,2026-01-01,2026-09-30,2026-11-09,резерв напред,PaymentsOfOrdinaryDividends
 NSC,net_income,2008-01-01,2008-12-31,2011-02-17,Р4-2 начало,NetIncomeLossAvailableToCommonStockholdersBasic
 NSC,net_income,2009-01-01,2009-06-30,2010-07-30,Р4-2 начало,NetIncomeLossAvailableToCommonStockholdersBasic
 NSC,net_income,2009-01-01,2009-09-30,2010-10-29,Р4-2 начало,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -4425,13 +4516,17 @@ NUE,gross_profit,2025-01-01,2025-04-05,2026-05-13,Р4-6,Revenues-CostOfGoodsAndS
 NUE,gross_profit,2025-01-01,2025-07-05,2025-08-13,Р4-6,Revenues-CostOfGoodsAndServicesSold
 NUE,gross_profit,2025-01-01,2025-07-05,2026-08-12,Р4-6,Revenues-CostOfGoodsAndServicesSold
 NUE,gross_profit,2025-01-01,2025-10-04,2025-11-12,Р4-6,Revenues-CostOfGoodsAndServicesSold
+NUE,gross_profit,2025-01-01,2025-10-04,2026-11-10,Р4-6,Revenues-CostOfGoodsAndServicesSold
 NUE,gross_profit,2025-01-01,2025-12-31,2026-02-25,Р4-6,Revenues-CostOfGoodsAndServicesSold
 NUE,gross_profit,2025-04-06,2025-07-05,2025-08-13,Р4-6,Revenues-CostOfGoodsAndServicesSold
 NUE,gross_profit,2025-04-06,2025-07-05,2026-08-12,Р4-6,Revenues-CostOfGoodsAndServicesSold
 NUE,gross_profit,2025-07-06,2025-10-04,2025-11-12,Р4-6,Revenues-CostOfGoodsAndServicesSold
+NUE,gross_profit,2025-07-06,2025-10-04,2026-11-10,Р4-6,Revenues-CostOfGoodsAndServicesSold
 NUE,gross_profit,2026-01-01,2026-04-04,2026-05-13,Р4-6,Revenues-CostOfGoodsAndServicesSold
 NUE,gross_profit,2026-01-01,2026-07-04,2026-08-12,Р4-6,Revenues-CostOfGoodsAndServicesSold
+NUE,gross_profit,2026-01-01,2026-10-03,2026-11-10,Р4-6,Revenues-CostOfGoodsAndServicesSold
 NUE,gross_profit,2026-04-05,2026-07-04,2026-08-12,Р4-6,Revenues-CostOfGoodsAndServicesSold
+NUE,gross_profit,2026-07-05,2026-10-03,2026-11-10,Р4-6,Revenues-CostOfGoodsAndServicesSold
 OKE,gross_profit,2015-01-01,2015-12-31,2016-02-23,Р4-6,Revenues-CostOfRevenue
 OKE,gross_profit,2015-01-01,2015-12-31,2017-02-28,Р4-6,Revenues-CostOfRevenue
 OKE,gross_profit,2015-01-01,2015-12-31,2017-07-06,Р4-6,Revenues-CostOfRevenue
@@ -4560,13 +4655,17 @@ OKE,gross_profit,2025-01-01,2025-03-31,2026-04-29,Р4-6,Revenues-CostOfRevenue
 OKE,gross_profit,2025-01-01,2025-06-30,2025-08-05,Р4-6,Revenues-CostOfRevenue
 OKE,gross_profit,2025-01-01,2025-06-30,2026-08-04,Р4-6,Revenues-CostOfRevenue
 OKE,gross_profit,2025-01-01,2025-09-30,2025-10-29,Р4-6,Revenues-CostOfRevenue
+OKE,gross_profit,2025-01-01,2025-09-30,2026-10-28,Р4-6,Revenues-CostOfRevenue
 OKE,gross_profit,2025-01-01,2025-12-31,2026-02-24,Р4-6,Revenues-CostOfRevenue
 OKE,gross_profit,2025-04-01,2025-06-30,2025-08-05,Р4-6,Revenues-CostOfRevenue
 OKE,gross_profit,2025-04-01,2025-06-30,2026-08-04,Р4-6,Revenues-CostOfRevenue
 OKE,gross_profit,2025-07-01,2025-09-30,2025-10-29,Р4-6,Revenues-CostOfRevenue
+OKE,gross_profit,2025-07-01,2025-09-30,2026-10-28,Р4-6,Revenues-CostOfRevenue
 OKE,gross_profit,2026-01-01,2026-03-31,2026-04-29,Р4-6,Revenues-CostOfRevenue
 OKE,gross_profit,2026-01-01,2026-06-30,2026-08-04,Р4-6,Revenues-CostOfRevenue
+OKE,gross_profit,2026-01-01,2026-09-30,2026-10-28,Р4-6,Revenues-CostOfRevenue
 OKE,gross_profit,2026-04-01,2026-06-30,2026-08-04,Р4-6,Revenues-CostOfRevenue
+OKE,gross_profit,2026-07-01,2026-09-30,2026-10-28,Р4-6,Revenues-CostOfRevenue
 OXY,dividends_paid,2023-01-01,2023-03-31,2023-05-09,резерв напред,PaymentsOfOrdinaryDividends
 OXY,dividends_paid,2023-01-01,2023-03-31,2024-05-07,резерв напред,PaymentsOfOrdinaryDividends
 OXY,dividends_paid,2023-01-01,2023-06-30,2023-08-02,резерв напред,PaymentsOfOrdinaryDividends
@@ -4589,9 +4688,11 @@ OXY,dividends_paid,2025-01-01,2025-03-31,2026-05-05,резерв напред,Pa
 OXY,dividends_paid,2025-01-01,2025-06-30,2025-08-06,резерв напред,PaymentsOfOrdinaryDividends
 OXY,dividends_paid,2025-01-01,2025-06-30,2026-08-05,резерв напред,PaymentsOfOrdinaryDividends
 OXY,dividends_paid,2025-01-01,2025-09-30,2025-11-10,резерв напред,PaymentsOfOrdinaryDividends
+OXY,dividends_paid,2025-01-01,2025-09-30,2026-11-09,резерв напред,PaymentsOfOrdinaryDividends
 OXY,dividends_paid,2025-01-01,2025-12-31,2026-02-18,резерв напред,PaymentsOfOrdinaryDividends
 OXY,dividends_paid,2026-01-01,2026-03-31,2026-05-05,резерв напред,PaymentsOfOrdinaryDividends
 OXY,dividends_paid,2026-01-01,2026-06-30,2026-08-05,резерв напред,PaymentsOfOrdinaryDividends
+OXY,dividends_paid,2026-01-01,2026-09-30,2026-11-09,резерв напред,PaymentsOfOrdinaryDividends
 PAYX,net_income,2015-06-01,2016-05-31,2016-07-22,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 PAYX,net_income,2015-06-01,2016-05-31,2017-07-21,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 PAYX,net_income,2015-06-01,2016-05-31,2018-07-20,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -4875,9 +4976,11 @@ PFE,dividends_paid,2025-01-01,2025-03-30,2026-05-05,Р4-1,PaymentsOfOrdinaryDivi
 PFE,dividends_paid,2025-01-01,2025-06-29,2025-08-05,Р4-1,PaymentsOfOrdinaryDividends
 PFE,dividends_paid,2025-01-01,2025-06-29,2026-08-04,Р4-1,PaymentsOfOrdinaryDividends
 PFE,dividends_paid,2025-01-01,2025-09-28,2025-11-04,Р4-1,PaymentsOfOrdinaryDividends
+PFE,dividends_paid,2025-01-01,2025-09-28,2026-11-03,Р4-1,PaymentsOfOrdinaryDividends
 PFE,dividends_paid,2025-01-01,2025-12-31,2026-02-26,Р4-1,PaymentsOfOrdinaryDividends
 PFE,dividends_paid,2026-01-01,2026-03-29,2026-05-05,Р4-1,PaymentsOfOrdinaryDividends
 PFE,dividends_paid,2026-01-01,2026-06-28,2026-08-04,Р4-1,PaymentsOfOrdinaryDividends
+PFE,dividends_paid,2026-01-01,2026-09-27,2026-11-03,Р4-1,PaymentsOfOrdinaryDividends
 PFG,net_income,2016-10-01,2016-12-31,2017-02-08,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 PFG,net_income,2016-10-01,2016-12-31,2018-02-09,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 PLD,net_income,2018-10-01,2018-12-31,2019-02-13,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -5100,6 +5203,7 @@ QCOM,dividends_paid,2023-09-25,2024-06-23,2024-07-31,резерв напред,P
 QCOM,dividends_paid,2023-09-25,2024-06-23,2025-07-30,резерв напред,PaymentsOfOrdinaryDividends
 QCOM,dividends_paid,2023-09-25,2024-09-29,2024-11-06,резерв напред,PaymentsOfOrdinaryDividends
 QCOM,dividends_paid,2023-09-25,2024-09-29,2025-11-05,резерв напред,PaymentsOfOrdinaryDividends
+QCOM,dividends_paid,2023-09-25,2024-09-29,2026-11-04,резерв напред,PaymentsOfOrdinaryDividends
 QCOM,dividends_paid,2024-09-30,2024-12-29,2025-02-05,резерв напред,PaymentsOfOrdinaryDividends
 QCOM,dividends_paid,2024-09-30,2024-12-29,2026-02-04,резерв напред,PaymentsOfOrdinaryDividends
 QCOM,dividends_paid,2024-09-30,2025-03-30,2025-04-30,резерв напред,PaymentsOfOrdinaryDividends
@@ -5107,9 +5211,11 @@ QCOM,dividends_paid,2024-09-30,2025-03-30,2026-04-29,резерв напред,P
 QCOM,dividends_paid,2024-09-30,2025-06-29,2025-07-30,резерв напред,PaymentsOfOrdinaryDividends
 QCOM,dividends_paid,2024-09-30,2025-06-29,2026-07-29,резерв напред,PaymentsOfOrdinaryDividends
 QCOM,dividends_paid,2024-09-30,2025-09-28,2025-11-05,резерв напред,PaymentsOfOrdinaryDividends
+QCOM,dividends_paid,2024-09-30,2025-09-28,2026-11-04,резерв напред,PaymentsOfOrdinaryDividends
 QCOM,dividends_paid,2025-09-29,2025-12-28,2026-02-04,резерв напред,PaymentsOfOrdinaryDividends
 QCOM,dividends_paid,2025-09-29,2026-03-29,2026-04-29,резерв напред,PaymentsOfOrdinaryDividends
 QCOM,dividends_paid,2025-09-29,2026-06-28,2026-07-29,резерв напред,PaymentsOfOrdinaryDividends
+QCOM,dividends_paid,2025-09-29,2026-09-27,2026-11-04,резерв напред,PaymentsOfOrdinaryDividends
 RJF,dividends_paid,2021-10-01,2022-09-30,2022-11-22,Р4-2 по средата,PaymentsOfOrdinaryDividends
 RJF,dividends_paid,2021-10-01,2022-09-30,2023-11-21,Р4-2 по средата,PaymentsOfOrdinaryDividends
 RJF,dividends_paid,2021-10-01,2022-09-30,2024-11-26,Р4-2 по средата,PaymentsOfOrdinaryDividends
@@ -5124,6 +5230,7 @@ RJF,dividends_paid,2023-10-01,2024-06-30,2024-08-06,резерв напред,Pa
 RJF,dividends_paid,2023-10-01,2024-06-30,2025-08-06,резерв напред,PaymentsOfOrdinaryDividends
 RJF,dividends_paid,2023-10-01,2024-09-30,2024-11-26,резерв напред,PaymentsOfOrdinaryDividends
 RJF,dividends_paid,2023-10-01,2024-09-30,2025-11-25,резерв напред,PaymentsOfOrdinaryDividends
+RJF,dividends_paid,2023-10-01,2024-09-30,2026-11-24,резерв напред,PaymentsOfOrdinaryDividends
 RJF,dividends_paid,2024-10-01,2024-12-31,2025-02-07,резерв напред,PaymentsOfOrdinaryDividends
 RJF,dividends_paid,2024-10-01,2024-12-31,2026-02-06,резерв напред,PaymentsOfOrdinaryDividends
 RJF,dividends_paid,2024-10-01,2025-03-31,2025-05-07,резерв напред,PaymentsOfOrdinaryDividends
@@ -5131,10 +5238,13 @@ RJF,dividends_paid,2024-10-01,2025-03-31,2026-05-06,резерв напред,Pa
 RJF,dividends_paid,2024-10-01,2025-06-30,2025-08-06,резерв напред,PaymentsOfOrdinaryDividends
 RJF,dividends_paid,2024-10-01,2025-06-30,2026-08-05,резерв напред,PaymentsOfOrdinaryDividends
 RJF,dividends_paid,2024-10-01,2025-09-30,2025-11-25,резерв напред,PaymentsOfOrdinaryDividends
+RJF,dividends_paid,2024-10-01,2025-09-30,2026-11-24,резерв напред,PaymentsOfOrdinaryDividends
 RJF,dividends_paid,2025-10-01,2025-12-31,2026-02-06,резерв напред,PaymentsOfOrdinaryDividends
 RJF,dividends_paid,2025-10-01,2026-03-31,2026-05-06,резерв напред,PaymentsOfOrdinaryDividends
 RJF,dividends_paid,2025-10-01,2026-06-30,2026-08-05,резерв напред,PaymentsOfOrdinaryDividends
-ROL,dividends_paid,2026-04-01,2026-06-30,2026-07-23,резерв напред,PaymentsOfOrdinaryDividends
+RJF,dividends_paid,2025-10-01,2026-09-30,2026-11-24,резерв напред,PaymentsOfOrdinaryDividends
+ROL,dividends_paid,2026-04-01,2026-06-30,2026-07-23,Р4-2 по средата,PaymentsOfOrdinaryDividends
+ROL,dividends_paid,2026-07-01,2026-09-30,2026-10-22,резерв напред,PaymentsOfOrdinaryDividends
 ROL,net_income,2010-10-01,2010-12-31,2012-02-28,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 ROL,net_income,2011-01-01,2011-12-31,2012-02-28,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 ROL,net_income,2011-01-01,2011-12-31,2013-02-27,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -5491,12 +5601,15 @@ SPG,dividends_paid,2025-01-01,2025-03-31,2026-05-11,Р4-3,DPSxWASO
 SPG,dividends_paid,2025-01-01,2025-06-30,2025-08-07,Р4-3,DPSxWASO
 SPG,dividends_paid,2025-01-01,2025-06-30,2026-08-10,Р4-3,DPSxWASO
 SPG,dividends_paid,2025-01-01,2025-09-30,2025-11-06,Р4-3,DPSxWASO
+SPG,dividends_paid,2025-01-01,2025-09-30,2026-11-06,Р4-3,DPSxWASO
 SPG,dividends_paid,2025-01-01,2025-12-31,2026-02-25,Р4-3,DPSxWASO
 SPG,dividends_paid,2025-04-01,2025-06-30,2025-08-07,Р4-3,DPSxWASO
 SPG,dividends_paid,2025-07-01,2025-09-30,2025-11-06,Р4-3,DPSxWASO
 SPG,dividends_paid,2026-01-01,2026-03-31,2026-05-11,Р4-3,DPSxWASO
 SPG,dividends_paid,2026-01-01,2026-06-30,2026-08-10,Р4-3,DPSxWASO
+SPG,dividends_paid,2026-01-01,2026-09-30,2026-11-06,Р4-3,DPSxWASO
 SPG,dividends_paid,2026-04-01,2026-06-30,2026-08-10,Р4-3,DPSxWASO
+SPG,dividends_paid,2026-07-01,2026-09-30,2026-11-06,Р4-3,DPSxWASO
 SPG,net_income,2011-10-01,2011-12-31,2012-02-28,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 SPG,net_income,2011-10-01,2011-12-31,2013-02-28,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 SPG,net_income,2012-10-01,2012-12-31,2013-02-28,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -5554,13 +5667,17 @@ SWK,gross_profit,2024-12-29,2025-03-29,2026-04-29,Р4-6,Revenues-CostOfGoodsAndS
 SWK,gross_profit,2024-12-29,2025-06-28,2025-07-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 SWK,gross_profit,2024-12-29,2025-06-28,2026-07-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 SWK,gross_profit,2024-12-29,2025-09-27,2025-11-04,Р4-6,Revenues-CostOfGoodsAndServicesSold
+SWK,gross_profit,2024-12-29,2025-09-27,2026-11-04,Р4-6,Revenues-CostOfGoodsAndServicesSold
 SWK,gross_profit,2024-12-29,2026-01-03,2026-02-24,Р4-6,Revenues-CostOfGoodsAndServicesSold
 SWK,gross_profit,2025-03-30,2025-06-28,2025-07-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 SWK,gross_profit,2025-03-30,2025-06-28,2026-07-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 SWK,gross_profit,2025-06-29,2025-09-27,2025-11-04,Р4-6,Revenues-CostOfGoodsAndServicesSold
+SWK,gross_profit,2025-06-29,2025-09-27,2026-11-04,Р4-6,Revenues-CostOfGoodsAndServicesSold
 SWK,gross_profit,2026-01-04,2026-04-04,2026-04-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
 SWK,gross_profit,2026-01-04,2026-07-04,2026-07-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
+SWK,gross_profit,2026-01-04,2026-10-03,2026-11-04,Р4-6,Revenues-CostOfGoodsAndServicesSold
 SWK,gross_profit,2026-04-05,2026-07-04,2026-07-29,Р4-6,Revenues-CostOfGoodsAndServicesSold
+SWK,gross_profit,2026-07-05,2026-10-03,2026-11-04,Р4-6,Revenues-CostOfGoodsAndServicesSold
 SYY,net_income,2011-07-03,2011-12-31,2012-02-07,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 SYY,net_income,2011-07-03,2011-12-31,2013-02-05,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 SYY,net_income,2011-07-03,2012-03-31,2012-05-08,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -5889,13 +6006,17 @@ TDY,gross_profit,2024-12-30,2025-03-30,2026-04-24,Р4-6,Revenues-CostOfGoodsAndS
 TDY,gross_profit,2024-12-30,2025-06-29,2025-07-28,Р4-6,Revenues-CostOfGoodsAndServicesSold
 TDY,gross_profit,2024-12-30,2025-06-29,2026-07-24,Р4-6,Revenues-CostOfGoodsAndServicesSold
 TDY,gross_profit,2024-12-30,2025-09-28,2025-10-24,Р4-6,Revenues-CostOfGoodsAndServicesSold
+TDY,gross_profit,2024-12-30,2025-09-28,2026-10-23,Р4-6,Revenues-CostOfGoodsAndServicesSold
 TDY,gross_profit,2024-12-30,2025-12-28,2026-02-20,Р4-6,Revenues-CostOfGoodsAndServicesSold
 TDY,gross_profit,2025-03-31,2025-06-29,2025-07-28,Р4-6,Revenues-CostOfGoodsAndServicesSold
 TDY,gross_profit,2025-03-31,2025-06-29,2026-07-24,Р4-6,Revenues-CostOfGoodsAndServicesSold
 TDY,gross_profit,2025-06-30,2025-09-28,2025-10-24,Р4-6,Revenues-CostOfGoodsAndServicesSold
+TDY,gross_profit,2025-06-30,2025-09-28,2026-10-23,Р4-6,Revenues-CostOfGoodsAndServicesSold
 TDY,gross_profit,2025-12-29,2026-03-29,2026-04-24,Р4-6,Revenues-CostOfGoodsAndServicesSold
 TDY,gross_profit,2025-12-29,2026-06-28,2026-07-24,Р4-6,Revenues-CostOfGoodsAndServicesSold
+TDY,gross_profit,2025-12-29,2026-09-27,2026-10-23,Р4-6,Revenues-CostOfGoodsAndServicesSold
 TDY,gross_profit,2026-03-30,2026-06-28,2026-07-24,Р4-6,Revenues-CostOfGoodsAndServicesSold
+TDY,gross_profit,2026-06-29,2026-09-27,2026-10-23,Р4-6,Revenues-CostOfGoodsAndServicesSold
 TEL,net_income,2011-06-25,2011-09-30,2012-11-13,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 TEL,net_income,2011-06-26,2011-09-30,2011-11-18,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 TEL,net_income,2012-06-30,2012-09-28,2012-11-13,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -6448,13 +6569,17 @@ VLO,gross_profit,2025-01-01,2025-03-31,2026-04-30,Р4-6,Revenues-CostOfRevenue
 VLO,gross_profit,2025-01-01,2025-06-30,2025-07-24,Р4-6,Revenues-CostOfRevenue
 VLO,gross_profit,2025-01-01,2025-06-30,2026-07-30,Р4-6,Revenues-CostOfRevenue
 VLO,gross_profit,2025-01-01,2025-09-30,2025-10-23,Р4-6,Revenues-CostOfRevenue
+VLO,gross_profit,2025-01-01,2025-09-30,2026-10-28,Р4-6,Revenues-CostOfRevenue
 VLO,gross_profit,2025-01-01,2025-12-31,2026-02-25,Р4-6,Revenues-CostOfRevenue
 VLO,gross_profit,2025-04-01,2025-06-30,2025-07-24,Р4-6,Revenues-CostOfRevenue
 VLO,gross_profit,2025-04-01,2025-06-30,2026-07-30,Р4-6,Revenues-CostOfRevenue
 VLO,gross_profit,2025-07-01,2025-09-30,2025-10-23,Р4-6,Revenues-CostOfRevenue
+VLO,gross_profit,2025-07-01,2025-09-30,2026-10-28,Р4-6,Revenues-CostOfRevenue
 VLO,gross_profit,2026-01-01,2026-03-31,2026-04-30,Р4-6,Revenues-CostOfRevenue
 VLO,gross_profit,2026-01-01,2026-06-30,2026-07-30,Р4-6,Revenues-CostOfRevenue
+VLO,gross_profit,2026-01-01,2026-09-30,2026-10-28,Р4-6,Revenues-CostOfRevenue
 VLO,gross_profit,2026-04-01,2026-06-30,2026-07-30,Р4-6,Revenues-CostOfRevenue
+VLO,gross_profit,2026-07-01,2026-09-30,2026-10-28,Р4-6,Revenues-CostOfRevenue
 VTR,net_income,2011-10-01,2011-12-31,2012-02-22,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 VTR,net_income,2011-10-01,2011-12-31,2013-02-19,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
 VTR,net_income,2012-10-01,2012-12-31,2013-02-19,Р4-2 по средата,NetIncomeLossAvailableToCommonStockholdersBasic
@@ -6754,6 +6879,8 @@ ZTS,dividends_paid,2025-01-01,2025-03-31,2026-05-07,Р4-1,PaymentsOfOrdinaryDivi
 ZTS,dividends_paid,2025-01-01,2025-06-30,2025-08-05,Р4-1,PaymentsOfOrdinaryDividends
 ZTS,dividends_paid,2025-01-01,2025-06-30,2026-08-06,Р4-1,PaymentsOfOrdinaryDividends
 ZTS,dividends_paid,2025-01-01,2025-09-30,2025-11-04,Р4-1,PaymentsOfOrdinaryDividends
+ZTS,dividends_paid,2025-01-01,2025-09-30,2026-11-05,Р4-1,PaymentsOfOrdinaryDividends
 ZTS,dividends_paid,2025-01-01,2025-12-31,2026-02-12,Р4-1,PaymentsOfOrdinaryDividends
 ZTS,dividends_paid,2026-01-01,2026-03-31,2026-05-07,Р4-1,PaymentsOfOrdinaryDividends
 ZTS,dividends_paid,2026-01-01,2026-06-30,2026-08-06,Р4-1,PaymentsOfOrdinaryDividends
+ZTS,dividends_paid,2026-01-01,2026-09-30,2026-11-05,Р4-1,PaymentsOfOrdinaryDividends
