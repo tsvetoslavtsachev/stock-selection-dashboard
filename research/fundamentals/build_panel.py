@@ -32,6 +32,7 @@ CLI
 ---
     python -m research.fundamentals.build_panel
     python -m research.fundamentals.build_panel --limit 20   # first N cache files
+    python -m research.fundamentals.build_panel --lock-unlocked   # nci_lock.csv rows for new names
 """
 
 from __future__ import annotations
@@ -179,6 +180,26 @@ _NI_CONSOLIDATED_TAG = "ProfitLoss"
 _NCI_TAG = "NetIncomeLossAttributableToNoncontrollingInterest"
 _NCI_IMMATERIAL = 0.02
 _NCI_EVIDENCE_N = 8
+# The choice (b) is LOCKED per name (ПНЛ-NCI, 26.11.2026). The rule reads the LATEST
+# shared keys, so a new quarter could flip it and rewrite the name's whole history (25.11.2026:
+# Q2 and Q3 2026 flipped SO, EVRG and DLR; SO lost its two Q4 2012 rows and gained 9 older
+# ProfitLoss rows). nci_lock.csv holds the choice: ticker, tag, from, rule_seen, reason.
+#   tag        NetIncomeLoss = ProfitLoss enters only through (a); ProfitLoss = (b) too.
+#   from       a row governs the ProfitLoss facts FILED on or after this date; a name's
+#              earliest row also governs everything filed before it. A new choice is a NEW
+#              row with a later date, so it moves only what is filed from then on.
+#   rule_seen  what the rule said when the row was written (= tag, unless Ц. overrode it).
+#   reason     required; a row without one stops the build.
+# The build writes research/data/nci_lock_check.csv (the rule now against the lock), and the
+# gate G6n (validate_gates) fails when the rule now differs from the latest row's rule_seen
+# (MISMATCH) or a name with ProfitLoss facts has no row (UNLOCKED). It never re-decides.
+#   python -m research.fundamentals.build_panel --lock-unlocked   # rows for UNLOCKED names
+_NCI_LOCK_PATH = Path(__file__).resolve().parent / "nci_lock.csv"
+_NCI_CHECK_PATH = _REPO_ROOT / "research" / "data" / "nci_lock_check.csv"
+NCI_LOCK_COLUMNS = ["ticker", "tag", "from", "rule_seen", "reason"]
+NCI_CHECK_COLUMNS = ["ticker", "rule", "median_dev", "n_shared", "pl_only_keys",
+                     "locked_tag", "locked_from", "rule_seen", "status"]
+_NCI_CHOICES = (_NI_TAG, _NI_CONSOLIDATED_TAG)
 
 # Sub-million sentinel floor for shares_outstanding. A cover-page share count
 # below this is never a real issuer: it is a spin-off placeholder (FOXA = 1.0,
@@ -726,30 +747,85 @@ def _valid(r: dict) -> bool:
     return "end" in r and "filed" in r and "val" in r
 
 
-def _extract_net_income(facts: dict) -> tuple[list[dict], int]:
-    """NetIncomeLoss records, with ProfitLoss filling the keys it does not carry
-    under the NCI rules above (_NI_CONSOLIDATED_TAG comment block).
-    Returns (records, n_profitloss_keys_refused)."""
-    ni = [r for r in _facts_for_tag(facts, "us-gaap", _NI_TAG, _USD) if _valid(r)]
+def load_nci_lock(path: Path = _NCI_LOCK_PATH) -> dict[str, list[dict]]:
+    """ticker -> its lock rows sorted by `from` (see the _NCI_LOCK_PATH comment block).
+    A row without a reason, with an unknown tag or a bad date stops the build."""
+    out: dict[str, list[dict]] = {}
+    if not path.exists():
+        return out
+    with open(path, encoding="utf-8", newline="") as fh:
+        for n, row in enumerate(csv.DictReader(fh), start=2):
+            tk = (row.get("ticker") or "").strip()
+            tag, rule_seen = (row.get("tag") or "").strip(), (row.get("rule_seen") or "").strip()
+            frm, reason = (row.get("from") or "").strip(), (row.get("reason") or "").strip()
+            if not tk or tag not in _NCI_CHOICES or rule_seen not in _NCI_CHOICES:
+                raise ValueError(f"{path.name}:{n}: ticker, and tag and rule_seen in {_NCI_CHOICES}, required")
+            if not reason:
+                raise ValueError(f"{path.name}:{n}: {tk} has no reason (a choice is locked only with one)")
+            date.fromisoformat(frm)
+            out.setdefault(tk, []).append({"tag": tag, "from": frm, "rule_seen": rule_seen,
+                                           "reason": reason})
+    for tk, rows in out.items():
+        rows.sort(key=lambda r: r["from"])
+        if len({r["from"] for r in rows}) != len(rows):
+            raise ValueError(f"{path.name}: two rows of {tk} share a `from` date")
+    return out
+
+
+def _nci_choice_at(lock_rows: list[dict], filed: str) -> str:
+    """The locked tag governing a ProfitLoss fact filed on `filed`."""
+    tag = lock_rows[0]["tag"]
+    for row in lock_rows:
+        if row["from"] <= filed:
+            tag = row["tag"]
+    return tag
+
+
+def _ni_split(facts: dict) -> tuple[list[dict], dict[tuple, float], list[dict], dict[tuple, float]]:
+    """(NetIncomeLoss records, first per key; their key -> value; ProfitLoss facts; NCI key -> value)."""
     out: list[dict] = []
     ni_by_key: dict[tuple, float] = {}
-    for r in ni:
+    for r in _facts_for_tag(facts, "us-gaap", _NI_TAG, _USD):
+        if not _valid(r):
+            continue
         k = _fact_key(r)
         if k in ni_by_key:
             continue
         ni_by_key[k] = r["val"]
         out.append(r)
-
     pl = [r for r in _facts_for_tag(facts, "us-gaap", _NI_CONSOLIDATED_TAG, _USD) if _valid(r)]
-    if not pl:
-        return out, 0
     nci = {_fact_key(r): r["val"]
            for r in _facts_for_tag(facts, "us-gaap", _NCI_TAG, _USD) if _valid(r)}
+    return out, ni_by_key, pl, nci
 
+
+def nci_rule(facts: dict) -> dict | None:
+    """What the rule says NOW: ProfitLoss when the issuer's latest _NCI_EVIDENCE_N shared
+    keys show the two tags within _NCI_IMMATERIAL (median), else NetIncomeLoss. None for a
+    name without ProfitLoss facts (the choice does not arise)."""
+    _ni, ni_by_key, pl, nci = _ni_split(facts)
+    if not pl:
+        return None
     shared = sorted((r for r in pl if ni_by_key.get(_fact_key(r))),
                     key=lambda r: (r["end"], r["filed"]))[-_NCI_EVIDENCE_N:]
     devs = sorted(abs(r["val"] / ni_by_key[_fact_key(r)] - 1) for r in shared)
-    immaterial = bool(devs) and devs[len(devs) // 2] <= _NCI_IMMATERIAL
+    med = devs[len(devs) // 2] if devs else None
+    immaterial = med is not None and med <= _NCI_IMMATERIAL
+    pl_only = {_fact_key(r) for r in pl} - set(ni_by_key) - set(nci)
+    return {"rule": _NI_CONSOLIDATED_TAG if immaterial else _NI_TAG,
+            "median_dev": med, "n_shared": len(devs), "pl_only_keys": len(pl_only)}
+
+
+def _extract_net_income(facts: dict, lock_rows: list[dict] | None = None) -> tuple[list[dict], int]:
+    """NetIncomeLoss records, with ProfitLoss filling the keys it does not carry
+    under the NCI rules above (_NI_CONSOLIDATED_TAG comment block). With lock_rows (the
+    name's nci_lock.csv rows) the as-is admission (b) follows the lock, fact by fact on its
+    filing date, never the rule; without them (a name not locked yet) it follows the rule.
+    Returns (records, n_profitloss_keys_refused)."""
+    out, ni_by_key, pl, nci = _ni_split(facts)
+    if not pl:
+        return out, 0
+    rule_tag = None if lock_rows else nci_rule(facts)["rule"]
 
     refused = 0
     seen = set(ni_by_key)
@@ -757,9 +833,10 @@ def _extract_net_income(facts: dict) -> tuple[list[dict], int]:
         k = _fact_key(r)
         if k in seen:
             continue
+        choice = _nci_choice_at(lock_rows, r["filed"]) if lock_rows else rule_tag
         if k in nci:
             val = r["val"] - nci[k]
-        elif immaterial:
+        elif choice == _NI_CONSOLIDATED_TAG:
             val = r["val"]
         else:
             refused += 1
@@ -767,6 +844,67 @@ def _extract_net_income(facts: dict) -> tuple[list[dict], int]:
         seen.add(k)
         out.append({**r, "val": val})
     return out, refused
+
+
+def nci_check_row(ticker: str, facts: dict, lock_rows: list[dict] | None) -> dict | None:
+    """One nci_lock_check.csv row: the rule now against the name's latest lock row."""
+    rule = nci_rule(facts)
+    if rule is None:
+        return None
+    last = lock_rows[-1] if lock_rows else None
+    if last is None:
+        status = "UNLOCKED"
+    elif rule["rule"] != last["rule_seen"]:
+        status = "MISMATCH"
+    else:
+        status = "ok"
+    med = rule["median_dev"]
+    return {"ticker": ticker, "rule": rule["rule"],
+            "median_dev": "" if med is None else f"{med:.6f}",
+            "n_shared": rule["n_shared"], "pl_only_keys": rule["pl_only_keys"],
+            "locked_tag": last["tag"] if last else "", "locked_from": last["from"] if last else "",
+            "rule_seen": last["rule_seen"] if last else "", "status": status}
+
+
+def write_nci_check(rows: list[dict], path: Path = _NCI_CHECK_PATH) -> None:
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=NCI_CHECK_COLUMNS, lineterminator="\n")
+        w.writeheader()
+        w.writerows(sorted(rows, key=lambda r: r["ticker"]))
+
+
+def lock_unlocked(today: str | None = None, path: Path = _NCI_LOCK_PATH) -> list[str]:
+    """Append an nci_lock.csv row for every universe name with ProfitLoss facts and no row:
+    the rule's own answer, its evidence as the reason. Never touches an existing row."""
+    lock = load_nci_lock(path)
+    today = today or date.today().isoformat()
+    new: list[dict] = []
+    facts_by_cik: dict[str, dict] = {}
+    for tk, cik in load_universe():
+        if tk in lock:
+            continue
+        p = _CACHE_DIR / f"CIK{cik}.json"
+        if not p.exists():
+            continue
+        if cik not in facts_by_cik:
+            facts_by_cik[cik] = load_facts(p)
+        rule = nci_rule(facts_by_cik[cik])
+        if rule is None:
+            continue
+        med = rule["median_dev"]
+        ev = ("няма общ период с NetIncomeLoss" if med is None else
+              f"медиана |ProfitLoss/NetIncomeLoss - 1| = {100 * med:.2f}% "
+              f"на последните {rule['n_shared']} общи периода (праг {100 * _NCI_IMMATERIAL:.0f}%)")
+        new.append({"ticker": tk, "tag": rule["rule"], "from": today, "rule_seen": rule["rule"],
+                    "reason": f"първо заключване {today} по правилото: {ev}"})
+    if new:
+        fresh = not path.exists()
+        with open(path, "a", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=NCI_LOCK_COLUMNS, lineterminator="\n")
+            if fresh:
+                w.writeheader()
+            w.writerows(sorted(new, key=lambda r: r["ticker"]))
+    return [r["ticker"] for r in new]
 
 
 def _period_values(records: list[dict]) -> dict[tuple, float]:
@@ -1201,7 +1339,8 @@ def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict,
                      class_spec: dict | None = None, class_cache: dict | None = None,
                      debt_face: tuple | None = None, debt_cache: dict | None = None,
                      own_specs: dict[str, "_own.OwnSpec"] | None = None,
-                     own_cache: dict | None = None) -> list[list]:
+                     own_cache: dict | None = None,
+                     nci_lock: list[dict] | None = None) -> list[list]:
     """Extract all canonical concepts for one company -> panel rows. A ticker in the
     coefficient table also gets its per-class economic share counts (class_cache =
     its research/cache/edgar_classes JSON), winning an exact key collision. A ticker in
@@ -1227,9 +1366,12 @@ def _extract_company(ticker: str, cik10: str, facts: dict, stats: dict,
                 ckeys = {_fact_key(r) for r in crecs}
                 recs = [r for r in recs if _fact_key(r) not in ckeys] + crecs
         elif concept == "net_income":
-            recs, n_refused = _extract_net_income(facts)
+            recs, n_refused = _extract_net_income(facts, nci_lock)
             if n_refused:
                 stats["profitloss_refused"] = stats.get("profitloss_refused", 0) + n_refused
+            check = nci_check_row(ticker, facts, nci_lock)
+            if check is not None:
+                stats.setdefault("nci_check", []).append(check)
         else:
             # Union the chain (tag migration of the SAME line across accounting
             # eras); de-duplicated by (start,end,filed), earlier tag wins a tie.
@@ -1322,6 +1464,7 @@ def build(limit: int | None = None) -> dict:
     for (tk, concept), spec in _own.load_table().items():
         own_table.setdefault(tk, {})[concept] = spec
     debt_face = _debt.read_face()
+    nci_lock = load_nci_lock()
 
     cache_files = sorted(_CACHE_DIR.glob("CIK*.json"))
     if limit is not None:
@@ -1385,7 +1528,8 @@ def build(limit: int | None = None) -> dict:
                     else:
                         stats.setdefault("own_cache_missing", []).append(ticker)
                 rows = _extract_company(ticker, cik10, facts, stats, spec, ccache,
-                                        debt_face.get(ticker), dcache, ospecs, ocache)
+                                        debt_face.get(ticker), dcache, ospecs, ocache,
+                                        nci_lock.get(ticker))
                 w.writerows(rows)
                 stats["rows"] += len(rows)
                 stats["companies_seen"] += 1
@@ -1397,6 +1541,10 @@ def build(limit: int | None = None) -> dict:
         w = csv.writer(fh)
         w.writerow(RULES_COLUMNS)
         w.writerows(sorted(stats.get("provenance", [])))
+    write_nci_check(stats.get("nci_check", []))
+    not_ok = [(r["ticker"], r["status"]) for r in stats.get("nci_check", []) if r["status"] != "ok"]
+    logger.info("net_income NCI lock (nci_lock.csv): %d names with ProfitLoss, not ok %d %s",
+                len(stats.get("nci_check", [])), len(not_ok), not_ok)
     if stats.get("gp_from_cost"):
         logger.info("gross_profit: revenue minus cost forward (_GP_FROM_COST, Р4-6): %s",
                     stats["gp_from_cost"])
@@ -1453,6 +1601,9 @@ def build(limit: int | None = None) -> dict:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Build the EDGAR PIT panel from cached companyfacts.")
     p.add_argument("--limit", type=int, default=None, help="only the first N cache files")
+    p.add_argument("--lock-unlocked", action="store_true",
+                   help="append nci_lock.csv rows (the rule's answer, its evidence as reason) for "
+                        "names with ProfitLoss facts and no row; then rebuild")
     args = p.parse_args(argv)
 
     logging.basicConfig(
@@ -1460,6 +1611,10 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+    if args.lock_unlocked:
+        new = lock_unlocked()
+        logger.info("nci_lock.csv: %d new rows %s (rebuild the panel next)", len(new), new)
+        return 0
     build(limit=args.limit)
     return 0
 

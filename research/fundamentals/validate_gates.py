@@ -35,6 +35,11 @@ G6 — staleness ratchet (12.10.2026)
     * G6a (ПНЛ4б, 13.10.2026): depreciation_amortization is the full line; no row may
       be a bare `Depreciation` fact (PP&E only), and a build_panel._DA_NA name carries
       none. Reads the EDGAR cache; skipped where it is absent (CI).
+    * G6n (ПНЛ-NCI, 26.11.2026): the net_income choice of ProfitLoss as-is is locked per name
+      in build_panel's nci_lock.csv. G6n reads research/data/nci_lock_check.csv (written by the
+      build: the rule now against the lock) and FAILS on a MISMATCH (the rule now differs from
+      what it said when the name's latest row was written) or an UNLOCKED name. The panel itself
+      does not move: the fix is a new nci_lock.csv row with a reason (or --lock-unlocked).
 
 CLI
     python -m research.fundamentals.validate_gates
@@ -77,6 +82,7 @@ _MEGACAPS = ["AAPL", "MSFT", "JPM", "XOM", "JNJ"]
 _FRESH_DAYS = 45    # G7: max age of the panel's latest `filed` (see g7_freshness)
 _LAG_NAME_DAYS = 140   # G7b: a name whose latest 10-Q/10-K is older than this is frozen (see g7b_lagging_names)
 _LAG_BASELINE_PATH = _REPO_ROOT / "research" / "data" / "lag_baseline.csv"
+_NCI_CHECK_PATH = _REPO_ROOT / "research" / "data" / "nci_lock_check.csv"
 _LAG_COLUMNS = ["ticker", "last_filed", "reason"]
 _ANNUAL_QUARTERLY_FORMS = ("10-K", "10-Q", "10-KT", "10-K/A", "10-Q/A")
 _STALE_DAYS = 100   # same threshold as valuation-organ scripts/build_cash_table.STALE_DAYS
@@ -417,9 +423,30 @@ def g7b_lagging_names(panel: pd.DataFrame, baseline: pd.DataFrame | None = None,
     return fails
 
 
+def g6n_nci_lock(path: Path = _NCI_CHECK_PATH) -> list[str]:
+    """G6n: the build's net_income NCI choice against nci_lock.csv (see the module docstring)."""
+    if not path.exists():
+        logger.info("G6n skipped: %s absent (run build_panel)", path.name)
+        return []
+    fails = []
+    for r in pd.read_csv(path, dtype=str, keep_default_na=False).itertuples():
+        med = f"{100 * float(r.median_dev):.2f}%" if r.median_dev else "n/a"
+        if r.status == "MISMATCH":
+            fails.append(f"G6n NCI lock {r.ticker}: the rule now says {r.rule} (median {med} on "
+                         f"{r.n_shared} shared periods); the lock row of {r.locked_from} saw "
+                         f"{r.rule_seen} and holds {r.locked_tag}. History unchanged; decide with "
+                         f"a new nci_lock.csv row and a reason")
+        elif r.status == "UNLOCKED":
+            fails.append(f"G6n NCI lock {r.ticker}: ProfitLoss facts, no nci_lock.csv row "
+                         f"(rule: {r.rule}, median {med}); run build_panel --lock-unlocked")
+        elif r.status != "ok":
+            fails.append(f"G6n NCI lock {r.ticker}: unknown status {r.status!r}")
+    return fails
+
+
 def g6_all(panel: pd.DataFrame, today: date | None = None) -> dict:
-    """G6 staleness ratchet plus the G6d debt declarations, the G6a D&A definition and
-    the G7 panel freshness, in one verdict."""
+    """G6 staleness ratchet plus the G6d debt declarations, the G6a D&A definition, the G6n
+    net_income NCI lock and the G7 panel freshness, in one verdict."""
     from research.fundamentals.build_panel import _DEBT_FREE
     g6 = g6_staleness(panel, load_staleness_baseline())
     # G7 and G7b are kept apart as well: Ц. decided (25.11.2026, "Само предупреждение") that in CI a
@@ -428,12 +455,13 @@ def g6_all(panel: pd.DataFrame, today: date | None = None) -> dict:
     g6["failures"] += g6["freshness"]
     g6["failures"] += g6d_debt_declarations(panel, _DEBT_FREE)
     g6["failures"] += g6a_da_full_line(panel)
+    g6["failures"] += g6n_nci_lock()
     return g6
 
 
 def _exit_code(g6: dict, warn_freshness: bool = False) -> int:
     """1 on any failure; with warn_freshness the G7/G7b failures become ::warning:: lines (GitHub
-    Actions annotations) and only G6, G6d and G6a decide the exit code."""
+    Actions annotations) and only G6, G6d, G6a and G6n decide the exit code."""
     fresh = list(g6.get("freshness", []))
     hard = [f for f in g6["failures"] if not (warn_freshness and f in fresh)]
     if warn_freshness:
