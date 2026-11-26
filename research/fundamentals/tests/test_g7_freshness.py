@@ -113,3 +113,21 @@ def test_g6_stays_a_hard_stop_in_ci_mode(monkeypatch, capsys):
                         pd.DataFrame(columns=validate_gates._BASELINE_COLUMNS))
     args = ["--panel", str(validate_gates._PANEL_PATH), "--no-stamp", "--warn-freshness"]
     assert validate_gates.main(args) == 1          # an empty baseline makes every stale pair NEW: G6 fails
+
+
+def test_refreeze_keeps_a_name_declared_ahead_and_fills_it_once_it_lags(tmp_path):
+    # 26.11.2026: AVB (merged into EQR on 17.08.2026) is declared before it lags. Mutation
+    # case: a writer that keeps only the lagging names would drop it at the 10.12 refreeze.
+    p = tmp_path / "lag.csv"
+    pd.DataFrame({"ticker": ["AVB", "OLD"], "last_filed": ["", "2026-05-04"],
+                  "reason": ["слят в EQR", "healed"]}).to_csv(p, index=False)
+    panel = pd.DataFrame({"ticker": ["AVB", "OLD"], "form": ["10-Q", "10-Q"],
+                          "filed": pd.to_datetime(["2026-07-30", "2026-10-30"])})
+    assert validate_gates.write_lag_baseline(panel, date(2026, 12, 10), p) == 0
+    b = validate_gates.load_lag_baseline(p)
+    assert list(b["ticker"]) == ["AVB"] and b["reason"][0] == "слят в EQR"   # OLD healed, dropped
+    assert validate_gates.g7b_lagging_names(panel, b, date(2026, 12, 10)) == []
+    assert validate_gates.write_lag_baseline(panel, date(2026, 12, 18), p) == 1
+    b = validate_gates.load_lag_baseline(p)
+    assert list(b["ticker"]) == ["AVB"] and b["last_filed"][0] == "2026-07-30" and b["reason"][0] == "слят в EQR"
+    assert validate_gates.g7b_lagging_names(panel, b, date(2026, 12, 18)) == []

@@ -371,10 +371,19 @@ def load_lag_baseline(path: Path = _LAG_BASELINE_PATH) -> pd.DataFrame:
 
 def write_lag_baseline(panel: pd.DataFrame, today: date | None = None,
                        path: Path = _LAG_BASELINE_PATH) -> int:
+    """Refreeze: every lagging name, with its reason carried over. A row with an EMPTY
+    last_filed is a declaration made ahead of time (26.11.2026: AVB, merged into EQR on
+    17.08.2026, stops filing; it lags only from 17.12.2026). It survives a refreeze while the
+    name is not lagging yet; once it lags it is written with its real last_filed and the same
+    reason. A row with a last_filed whose name caught up (healed) is dropped, as before."""
     lag = lagging_names(panel, today)
-    keep = {r.ticker: r.reason for r in load_lag_baseline(path).itertuples()}
+    old = load_lag_baseline(path)
+    keep = {r.ticker: r.reason for r in old.itertuples()}
     lag["reason"] = [keep.get(t, "") for t in lag["ticker"]]
-    lag.to_csv(path, index=False)
+    lf = old["last_filed"].fillna("").astype(str).str.strip() if "last_filed" in old.columns else ""
+    ahead = old[(lf == "") & ~old["ticker"].isin(lag["ticker"])]
+    out = pd.concat([lag, ahead[_LAG_COLUMNS]], ignore_index=True) if len(ahead) else lag
+    out.to_csv(path, index=False)
     return len(lag)
 
 
@@ -397,7 +406,12 @@ def g7b_lagging_names(panel: pd.DataFrame, baseline: pd.DataFrame | None = None,
                          "compare with SECClient.submissions")
         elif not known[r.ticker]:
             fails.append(f"LAGGING_UNEXPLAINED {r.ticker}: in lag_baseline.csv without a reason")
-    healed = sorted(set(known) - set(lag["ticker"]))
+    filed = {r.ticker: str(r.last_filed or "").strip() if isinstance(r.last_filed, str) else ""
+             for r in base.itertuples()} if "last_filed" in base.columns else {}
+    ahead = sorted(t for t in set(known) - set(lag["ticker"]) if not filed.get(t))
+    healed = sorted(t for t in set(known) - set(lag["ticker"]) if filed.get(t))
+    if ahead:
+        logger.info("G7b declared ahead (not lagging yet): %s", ", ".join(ahead))
     if healed:
         logger.info("G7b healed (refreeze lag_baseline.csv to lock in): %s", ", ".join(healed))
     return fails
